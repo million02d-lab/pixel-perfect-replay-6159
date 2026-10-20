@@ -19,6 +19,8 @@ export function SiteFooter() {
           <Link to="/driver" className="hover:text-gold">{t.nav.drivers}</Link>
           <Link to="/partners" className="hover:text-gold">{t.nav.partners}</Link>
           <Link to="/faq" className="hover:text-gold">{t.footer.contact}</Link>
+          <Link to="/passenger" className="hover:text-gold">{t.dash.passengerT}</Link>
+          <Link to="/driver-dashboard" className="hover:text-gold">{t.dash.driverT}</Link>
           <Link to="/privacy" className="hover:text-gold">{t.footer.privacy}</Link>
           <Link to="/terms" className="hover:text-gold">{t.footer.terms}</Link>
         </nav>
