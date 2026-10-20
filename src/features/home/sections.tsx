@@ -101,7 +101,7 @@ export function Benefits() {
     <Section title={t.sections.benefitsT}>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {t.benefits.map(([h, p], i) => {
-          const Icon = icons[i];
+          const Icon = icons[i] ?? ShieldCheck;
           return (
             <div key={h} className="flex gap-4 rounded-xl border bg-card p-5">
               <Icon className="h-6 w-6 shrink-0 text-gold" aria-hidden="true" />
@@ -174,7 +174,7 @@ export function SafetyGrid() {
     <Section title={t.sections.safetyT}>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {t.safety.map(([h, p], i) => {
-          const Icon = icons[i];
+          const Icon = icons[i] ?? ShieldCheck;
           return (
             <div key={h} className="rounded-xl border bg-card p-5">
               <Icon className="h-7 w-7 text-primary" aria-hidden="true" />

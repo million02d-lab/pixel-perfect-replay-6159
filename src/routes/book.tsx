@@ -12,9 +12,9 @@ type Search = { pickup?: string | undefined; destination?: string | undefined; v
 
 export const Route = createFileRoute("/book")({
   validateSearch: (s: Record<string, unknown>): Search => ({
-    pickup: typeof s.pickup === "string" ? s.pickup : undefined,
-    destination: typeof s.destination === "string" ? s.destination : undefined,
-    vehicle: s.vehicle === "comfort" || s.vehicle === "van" || s.vehicle === "economy" ? s.vehicle : undefined,
+    pickup: typeof s["pickup"] === "string" ? s["pickup"] : undefined,
+    destination: typeof s["destination"] === "string" ? s["destination"] : undefined,
+    vehicle: s["vehicle"] === "comfort" || s["vehicle"] === "van" || s["vehicle"] === "economy" ? s["vehicle"] : undefined,
   }),
   head: () => ({
     meta: [
