@@ -8,7 +8,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type Status = "idle" | "loading" | "success" | "error";
 const inputCls = "w-full rounded-lg border border-input bg-card px-3 py-2.5 text-base placeholder:text-muted-foreground aria-[invalid=true]:border-destructive";
 
-function Field({ label, error, children, id }: { label: string; error?: string; children: ReactNode; id: string }) {
+function Field({ label, error, children, id }: { label: string; error?: string | undefined; children: ReactNode; id: string }) {
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-sm font-medium">{label}</label>
@@ -51,12 +51,12 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" | "driver" }) {
   const { t } = useI18n();
   const id = useId();
   const [status, setStatus] = useState<Status>("idle");
-  const [errs, setErrs] = useState<Record<string, string>>({});
+  const [errs, setErrs] = useState<Partial<Record<"name" | "email" | "password", string>>>({});
   const [v, setV] = useState({ name: "", email: "", phone: "", password: "" });
   const needsName = mode !== "signin";
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const er: Record<string, string> = {};
+    const er: Partial<Record<"name" | "email" | "password", string>> = {};
     if (needsName && !v.name.trim()) er.name = t.auth.errName;
     if (!EMAIL.test(v.email)) er.email = t.auth.errEmail;
     if (v.password.length < 8) er.password = t.auth.errPass;

@@ -5,7 +5,7 @@ import { DemoBadge } from "@/components/site/DemoBadge";
  * Map provider abstraction. Replace DemoMap with a Mapbox / Google Maps
  * implementation once a provider key is configured (see README).
  */
-export interface MapProviderProps { pickup?: string; destination?: string }
+export interface MapProviderProps { pickup?: string | undefined; destination?: string | undefined }
 
 export function MapPanel(props: MapProviderProps) {
   const { t } = useI18n();

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/I18nProvider";
 import { demoDistance, estimateFare, type VehicleClass } from "@/lib/fare";
 
-type Search = { pickup?: string; destination?: string; vehicle?: VehicleClass };
+type Search = { pickup?: string | undefined; destination?: string | undefined; vehicle?: VehicleClass | undefined };
 
 export const Route = createFileRoute("/book")({
   validateSearch: (s: Record<string, unknown>): Search => ({

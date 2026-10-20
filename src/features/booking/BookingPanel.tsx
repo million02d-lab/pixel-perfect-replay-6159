@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/I18nProvider";
 import { validateRoute, type VehicleClass } from "@/lib/fare";
 
-export function BookingPanel({ initial }: { initial?: { pickup?: string; destination?: string; vehicle?: VehicleClass } }) {
+export function BookingPanel({ initial }: { initial?: { pickup?: string | undefined; destination?: string | undefined; vehicle?: VehicleClass | undefined } }) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const id = useId();
