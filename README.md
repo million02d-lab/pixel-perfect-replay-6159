@@ -4,16 +4,20 @@ Ozannif is being developed for an initial Rabat and Salé service area. The fron
 
 ## Current repository status
 
-This repository now contains the multilingual frontend, a Supabase schema with RLS, a deployed Edge Function, and initial account, contact, driver/vehicle application, partner application, rental matching, server quote and trip lifecycle endpoints. It is still **not ready for public production launch**. The following work remains incomplete or depends on provider/operational configuration:
-- account creation and sign-in in the UI
-- booking persistence and driver dispatch
-- real geocoding, route distance, duration and GPS tracking
-- server-verified production pricing and commission calculations
-- contact email delivery
-- rental-driver application processing
-- loyalty reward issuance and the operations/admin data layer
+The existing frontend has been connected to the Ozannif Supabase project, and an Edge Function (`ozannif-api`, deployed version 25 at the time of writing) now handles authenticated account provisioning, server-side fare quotes, trip creation and state changes, driver availability and proximity matching, driver/vehicle and partner applications, private driver-document metadata/review, rental requests and partner confirmation, loyalty points on trip completion, and admin operations.
 
-The interface still contains illustrative pricing, a placeholder map and simulated form/booking states. Do not advertise those as live services until the corresponding backend flows have been implemented and verified.
+The database foundation is applied: the public tables have RLS enabled, private driver-document storage is configured, and direct client-side table writes have been revoked so privileged changes must pass through the server-side API. The Supabase security advisor currently reports no security findings.
+
+**Ozannif is not yet ready for public production launch.** Verified launch blockers and incomplete integrations:
+- No active fare rules are configured for any vehicle class; quotes intentionally fail closed until approved rates and fuel/consumption inputs are entered.
+- A real routing provider is not confirmed configured. `MAPBOX_ACCESS_TOKEN` or `GOOGLE_MAPS_API_KEY` is required for live route distance/duration and server-side fare quotes.
+- The current map panel is still a placeholder; the full passenger live map/tracking and real-time notifications are not finished.
+- `RESEND_API_KEY`, `SUPPORT_EMAIL`, and a verified `RESEND_FROM_EMAIL` are needed for email delivery.
+- The full loyalty reward redemption flow, cancellation/refund/payment integrations, and comprehensive operational monitoring still need implementation and testing.
+- Legal, licensing, privacy, data-retention, consumer terms and Moroccan transport compliance require qualified local review before real rides.
+- Driver and partner verification, account recovery redirect settings, admin bootstrap and end-to-end tests must be completed in the target deployment environment.
+
+Do not advertise bookings or maps as live until provider configuration and end-to-end acceptance tests confirm the complete journey.
 
 ## Technology and structure
 
@@ -41,7 +45,7 @@ Run these commands locally or in CI after each change and record any existing ba
 
 See `.env.example` for placeholder configuration. Do not commit `.env`, API secrets, service-role keys, private keys or credentials. Public map keys must be restricted to approved origins. Server-only secrets belong in the hosting provider's secret store.
 
-The Supabase project exists and the database foundation has been applied, but the frontend forms and booking flow are not yet connected to it. Configure the Supabase project URL and publishable key through the deployment environment before implementing the client integration. Never put a service-role or secret key in browser code.
+The Supabase project and client integration are in place. Set the project URL and publishable key explicitly in the deployment environment for each target domain. Never put a service-role or secret key in browser code.
 
 ## Production plan
 
@@ -61,4 +65,4 @@ Core rules:
 
 ## Launch gate
 
-No production/security audit is complete. The deployed Edge Function requires map-provider secrets and an approved fare schedule before quoting or accepting real rides. Launch only after account, booking, dispatch, pricing, contact, rental application, rewards, admin authorization, privacy, legal review and CI acceptance criteria in the production plan have passed.
+No production/security audit is complete. The deployed Edge Function requires map-provider secrets and an approved active fare schedule before quoting or accepting real rides. Launch only after account, booking, dispatch, pricing, contact, rental application, rewards, admin authorization, privacy, legal review and CI acceptance criteria in the production plan have passed.
