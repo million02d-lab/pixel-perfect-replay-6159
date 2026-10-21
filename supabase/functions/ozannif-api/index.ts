@@ -46,7 +46,7 @@ async function db(path: string, init: RequestInit = {}) {
   return await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...init, headers });
 }
 async function readFare(vehicle: string) {
-  const r = await db(`fare_rules?select=id,base_fare_mad,per_km_mad,per_minute_mad,minimum_fare_mad,platform_fee_mad,valid_from,valid_until&vehicle_class=eq.${vehicle}&active=eq.true&order=valid_from.desc&limit=20`);
+  const r = await db(`fare_rules?select=id,base_fare_mad,per_km_mad,per_minute_mad,minimum_fare_mad,platform_fee_mad,fuel_price_mad_per_l,assumed_l_per_100km,valid_from,valid_until&vehicle_class=eq.${vehicle}&active=eq.true&order=valid_from.desc&limit=20`);
   if (!r.ok) throw new Error("Unable to read fare rules.");
   const rows = await r.json();
   const now = Date.now();
@@ -86,10 +86,14 @@ async function quote(aLat: number, aLng: number, bLat: number, bLng: number, veh
   const base = Number(rule.base_fare_mad);
   const distance = km * Number(rule.per_km_mad);
   const time = minutes * Number(rule.per_minute_mad);
-  const total = Math.max(Number(rule.minimum_fare_mad), base + distance + time);
+  const fuelPrice = rule.fuel_price_mad_per_l == null ? null : Number(rule.fuel_price_mad_per_l);
+  const consumption = rule.assumed_l_per_100km == null ? null : Number(rule.assumed_l_per_100km);
+  if (fuelPrice === null || consumption === null || fuelPrice <= 0 || consumption <= 0) throw new Error("The active fare rule is missing validated fuel price or vehicle consumption inputs.");
+  const fuel = km * fuelPrice * consumption / 100;
+  const total = Math.max(Number(rule.minimum_fare_mad), base + distance + time + fuel);
   const fee = Number(rule.platform_fee_mad);
-  if (![base, distance, time, total, fee].every(Number.isFinite) || total < 0 || fee < 0 || fee > total) throw new Error("The active fare rule is invalid.");
-  return { route, ruleId: rule.id, vehicleClass: vehicle, currency: "MAD", breakdown: { base: round2(base), distance: round2(distance), time: round2(time), platformFee: round2(fee), total: round2(total), driverNetBeforeOtherCosts: round2(total - fee) } };
+  if (![base, distance, time, fuel, total, fee].every(Number.isFinite) || total < 0 || fee < 0 || fee > total) throw new Error("The active fare rule is invalid.");
+  return { route, ruleId: rule.id, vehicleClass: vehicle, currency: "MAD", breakdown: { base: round2(base), distance: round2(distance), time: round2(time), fuel: round2(fuel), platformFee: round2(fee), total: round2(total), driverNetBeforeOtherCosts: round2(total - fee) } };
 }
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -357,7 +361,7 @@ Deno.serve(async (req: Request) => {
       const fuelPrice = body.fuelPrice == null ? null : num(body.fuelPrice, 0, 1000);
       const consumption = body.litersPer100Km == null ? null : num(body.litersPer100Km, 0, 100);
       const active = body.active === true;
-      if (!vehicle || base === null || perKm === null || perMinute === null || minimum === null || fee === null || (body.fuelPrice != null && fuelPrice === null) || (body.litersPer100Km != null && consumption === null) || fee > minimum) {
+      if (!vehicle || base === null || perKm === null || perMinute === null || minimum === null || fee === null || (body.fuelPrice != null && fuelPrice === null) || (body.litersPer100Km != null && consumption === null) || fee > minimum || (active && (fuelPrice === null || fuelPrice <= 0 || consumption === null || consumption <= 0))) {
         return fail("Invalid fare rule. Minimum fare must cover the platform fee.", 422, origin);
       }
       if (active) {
