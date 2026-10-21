@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { seo } from "@/lib/seo";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { invokeOzannif } from "@/lib/supabase";
 
-type Trip = { id: string; status: string; pickup_label: string; destination_label: string; vehicle_class: string; quoted_fare_mad: number; platform_fee_mad?: number; route_distance_m: number | null; route_duration_s: number | null; created_at?: string; requested_at?: string };
-type Dashboard = { driverProfile: { verification_status: string } | null; presence: { online: boolean; updated_at?: string } ; assignedTrips: Trip[]; openTrips: Trip[] };
+type Trip = { id: string; status: string; pickup_label: string; destination_label: string; vehicle_class: string; quoted_fare_mad: number; platform_fee_mad?: number; route_distance_m: number | null; route_duration_s: number | null; pickup_distance_km?: number; created_at?: string; requested_at?: string };
+type Dashboard = { driverProfile: { verification_status: string } | null; presence: { online: boolean; updated_at?: string; latitude?: number | null; longitude?: number | null } ; assignedTrips: Trip[]; openTrips: Trip[] };
 
 export const Route = createFileRoute("/driver-dashboard")({
   head: () => seo("Driver dashboard", "Driver availability, trip requests and trip status on Ozannif."),
@@ -23,9 +23,9 @@ function Page() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const labels = {
-    ar: { online: "متصل لاستقبال الطلبات", offline: "غير متصل", pending: "طلبك كسائق ما زال قيد المراجعة.", noProfile: "سجّل كـسائق أولاً.", noVehicle: "خاصك سيارة موثّقة قبل استقبال الرحلات.", open: "طلبات متاحة", assigned: "رحلاتي", accept: "قبول الرحلة", arriving: "وصلت إلى نقطة الانطلاق", start: "بدء الرحلة", complete: "إنهاء الرحلة", cancel: "إلغاء", refresh: "تحديث", loading: "جارٍ تحميل لوحة السائق…", empty: "لا توجد رحلات هنا حالياً.", earnings: "الصافي قبل مصاريف السيارة", login: "تسجيل الدخول", status: "الحالة", onlineError: "لا يمكن الاتصال قبل الموافقة على السائق والسيارة." },
-    fr: { online: "En ligne pour recevoir des courses", offline: "Hors ligne", pending: "Votre candidature chauffeur est en cours de vérification.", noProfile: "Inscrivez-vous d'abord comme chauffeur.", noVehicle: "Un véhicule vérifié est nécessaire avant de recevoir des courses.", open: "Courses disponibles", assigned: "Mes courses", accept: "Accepter", arriving: "Arrivé au point de départ", start: "Démarrer la course", complete: "Terminer la course", cancel: "Annuler", refresh: "Actualiser", loading: "Chargement du tableau chauffeur…", empty: "Aucune course pour le moment.", earnings: "Net avant frais du véhicule", login: "Se connecter", status: "Statut", onlineError: "Le chauffeur et le véhicule doivent être approuvés avant la connexion." },
-    en: { online: "Online to receive trips", offline: "Offline", pending: "Your driver application is still under review.", noProfile: "Apply as a driver first.", noVehicle: "An approved vehicle is required before receiving trips.", open: "Available trips", assigned: "My trips", accept: "Accept trip", arriving: "Driver is at pickup", start: "Start trip", complete: "Complete trip", cancel: "Cancel", refresh: "Refresh", loading: "Loading driver dashboard…", empty: "No trips here yet.", earnings: "Driver net before vehicle costs", login: "Sign in", status: "Status", onlineError: "Driver and vehicle approval are required before going online." },
+    ar: { online: "متصل لاستقبال الطلبات", offline: "غير متصل", pending: "طلبك كسائق ما زال قيد المراجعة.", noProfile: "سجّل كـسائق أولاً.", noVehicle: "خاصك سيارة موثّقة قبل استقبال الرحلات.", open: "طلبات متاحة", assigned: "رحلاتي", accept: "قبول الرحلة", arriving: "وصلت إلى نقطة الانطلاق", start: "بدء الرحلة", complete: "إنهاء الرحلة", cancel: "إلغاء", refresh: "تحديث", loading: "جارٍ تحميل لوحة السائق…", empty: "لا توجد رحلات هنا حالياً.", earnings: "الصافي قبل مصاريف السيارة", login: "تسجيل الدخول", status: "الحالة", onlineError: "لا يمكن الاتصال قبل الموافقة على السائق والسيارة.", locationPermission: "خاصك تسمح للموقع باش توصلك الطلبات القريبة. غادي نوقف الاتصال.", privacy: "الموقع ديالك كيتشارك غير ملي تكون متصل، وكيتستعمل لاقتراح الرحلات القريبة." },
+    fr: { online: "En ligne pour recevoir des courses", offline: "Hors ligne", pending: "Votre candidature chauffeur est en cours de vérification.", noProfile: "Inscrivez-vous d'abord comme chauffeur.", noVehicle: "Un véhicule vérifié est nécessaire avant de recevoir des courses.", open: "Courses disponibles", assigned: "Mes courses", accept: "Accepter", arriving: "Arrivé au point de départ", start: "Démarrer la course", complete: "Terminer la course", cancel: "Annuler", refresh: "Actualiser", loading: "Chargement du tableau chauffeur…", empty: "Aucune course pour le moment.", earnings: "Net avant frais du véhicule", login: "Se connecter", status: "Statut", onlineError: "Le chauffeur et le véhicule doivent être approuvés avant la connexion.", locationPermission: "Autorisez la localisation pour recevoir les courses proches. Vous serez mis hors ligne.", privacy: "Votre position est partagée uniquement lorsque vous êtes en ligne pour proposer des courses proches." },
+    en: { online: "Online to receive trips", offline: "Offline", pending: "Your driver application is still under review.", noProfile: "Apply as a driver first.", noVehicle: "An approved vehicle is required before receiving trips.", open: "Available trips", assigned: "My trips", accept: "Accept trip", arriving: "Driver is at pickup", start: "Start trip", complete: "Complete trip", cancel: "Cancel", refresh: "Refresh", loading: "Loading driver dashboard…", empty: "No trips here yet.", earnings: "Driver net before vehicle costs", login: "Sign in", status: "Status", onlineError: "Driver and vehicle approval are required before going online.", locationPermission: "Allow location to receive nearby trip requests. You will be taken offline.", privacy: "Your location is shared only while online to suggest nearby trips." },
   }[lang];
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -34,6 +34,33 @@ function Page() {
     finally { setLoading(false); }
   }, [lang]);
   useEffect(() => { void load(); }, [load]);
+  const lastLocation = useRef<{ at: number; latitude: number | null; longitude: number | null }>({ at: 0, latitude: null, longitude: null });
+  useEffect(() => {
+    if (!data?.presence.online || data.driverProfile?.verification_status !== "approved") return;
+    if (!navigator.geolocation) {
+      setError(labels.locationPermission);
+      void invokeOzannif({ action: "set-driver-availability", online: false }).catch(() => {});
+      return;
+    }
+    const watchId = navigator.geolocation.watchPosition((position) => {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      const previous = lastLocation.current;
+      const moved = previous.latitude === null || previous.longitude === null || Math.abs(latitude - previous.latitude) > 0.0005 || Math.abs(longitude - previous.longitude) > 0.0005;
+      if (!moved && Date.now() - previous.at < 15000) return;
+      lastLocation.current = { at: Date.now(), latitude, longitude };
+      void invokeOzannif({ action: "update-driver-location", latitude, longitude }).catch((e) => {
+        setError(e instanceof Error ? e.message : labels.locationPermission);
+      });
+    }, () => {
+      setError(labels.locationPermission);
+      void invokeOzannif({ action: "set-driver-availability", online: false }).then(() => load()).catch(() => {});
+    }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      void invokeOzannif({ action: "set-driver-availability", online: false }).catch(() => {});
+    };
+  }, [data?.presence.online, data?.driverProfile?.verification_status]);
   const availability = async (online: boolean) => {
     setBusy("availability"); setError("");
     try { await invokeOzannif({ action: "set-driver-availability", online }); await load(); }
@@ -59,7 +86,7 @@ function Page() {
     return (
       <article key={trip.id} className="grid gap-3 rounded-xl border p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0"><p className="font-semibold text-primary">{trip.pickup_label} → {trip.destination_label}</p><p className="mt-1 text-xs text-muted-foreground">{trip.route_distance_m ? `${(trip.route_distance_m / 1000).toFixed(1)} km` : "—"}</p></div>
+          <div className="min-w-0"><p className="font-semibold text-primary">{trip.pickup_label} → {trip.destination_label}</p><p className="mt-1 text-xs text-muted-foreground">{trip.pickup_distance_km !== undefined ? `${trip.pickup_distance_km.toFixed(1)} km to pickup` : trip.route_distance_m ? `${(trip.route_distance_m / 1000).toFixed(1)} km trip` : "—"}</p></div>
           <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold">{statusLabel(trip.status)}</span>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -81,7 +108,7 @@ function Page() {
         <>
           <Panel title={t.dash.availability}>
             <label className="flex items-center gap-3"><Switch checked={Boolean(data.presence?.online)} onCheckedChange={(checked) => void availability(checked)} disabled={busy === "availability"} aria-label={labels.online} /><span className="font-semibold">{data.presence?.online ? labels.online : labels.offline}</span></label>
-            <p className="mt-2 text-xs text-muted-foreground">{labels.noVehicle}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{labels.privacy}</p><p className="mt-1 text-xs text-muted-foreground">{labels.locationPermission}</p>
           </Panel>
           <Panel title={labels.open} wide>{data.openTrips.length ? <div className="grid gap-3">{data.openTrips.map((trip) => tripCard(trip, true))}</div> : <Empty text={labels.empty} />}</Panel>
           <Panel title={labels.assigned} wide>{data.assignedTrips.length ? <div className="grid gap-3">{data.assignedTrips.map((trip) => tripCard(trip, false))}</div> : <Empty text={labels.empty} />}</Panel>
