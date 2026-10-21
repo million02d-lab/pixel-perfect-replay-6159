@@ -16,7 +16,7 @@ type Quote = {
     ruleId: string;
     distanceKm: number;
     durationMinutes: number;
-    breakdown: { base: number; distance: number; time: number; platformFee: number; total: number; driverNetBeforeOtherCosts: number };
+    breakdown: { base: number; distance: number; time: number; fuel: number; platformFee: number; total: number; driverNetBeforeOtherCosts: number };
   };
 };
 type CreatedTrip = { trip: { id: string; status: string; quoted_fare_mad: number; platform_fee_mad: number; route_distance_m: number; route_duration_s: number }; duplicate: boolean };
@@ -145,6 +145,7 @@ function BookPage() {
                 {row(t.fare.base, `${quote.breakdown.base.toFixed(2)} MAD`)}
                 {row(t.fare.perKm, `${quote.breakdown.distance.toFixed(2)} MAD`)}
                 {row(t.fare.perMin, `${quote.breakdown.time.toFixed(2)} MAD`)}
+                {row(lang === "ar" ? "الوقود حسب الاستهلاك" : lang === "fr" ? "Carburant estimé" : "Estimated fuel cost", `${quote.breakdown.fuel.toFixed(2)} MAD`)}
                 {row(t.fare.fee, `${quote.breakdown.platformFee.toFixed(2)} MAD`)}
               </dl>
               <div className="mt-4 flex items-end justify-between border-t-2 border-gold pt-4">
