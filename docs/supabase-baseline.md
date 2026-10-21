@@ -27,7 +27,7 @@ Project: `OZANNIF` (region `eu-central-1`). The initial database migration was a
 - Current active fare rules can be read by the public site; writes are not granted to browser roles.
 - Contact messages are deliberately blocked from direct browser-role access; the Edge Function saves them using server-side credentials and applies best-effort per-instance rate limiting.
 - The `private` schema is not granted to browser roles.
-- No service-role/secret key is configured in client code. Direct table write privileges are revoked from anon and authenticated; the server-side Edge Function is the only application mutation path. Default privileges for future public tables created by the migration role also deny browser-role writes.
+- No service-role/secret key is configured in client code. Direct table write privileges are revoked from anon and authenticated; the server-side Edge Function is the only application mutation path. Default privileges for future public tables created by the migration role also deny browser-role writes; future public functions are not executable by browser roles by default, and browser roles have no sequence privileges.
 
 ## Important remaining work
 
