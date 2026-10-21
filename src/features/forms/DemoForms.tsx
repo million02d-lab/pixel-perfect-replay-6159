@@ -3,7 +3,7 @@ import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/I18nProvider";
-import { invokeOzannif, signIn, signUp, uploadDriverDocument, type DriverDocumentType } from "@/lib/supabase";
+import { invokeOzannif, requestPasswordReset, signIn, signUp, uploadDriverDocument, type DriverDocumentType } from "@/lib/supabase";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type Status = "idle" | "loading" | "success" | "error";
@@ -68,10 +68,17 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" | "driver" }) {
   const [requestError, setRequestError] = useState("");
   const needsName = mode !== "signin";
   const messages = {
-    ar: { confirmed: "تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتأكيده قبل تسجيل الدخول.", signedIn: "تم تسجيل الدخول بنجاح.", created: "تم إنشاء الحساب وإرسال طلب الانضمام للمراجعة. لا يمكن القيادة قبل التحقق من الوثائق.", failed: "تعذر إكمال العملية. حاول مرة أخرى." },
-    fr: { confirmed: "Compte créé. Vérifiez votre e-mail pour confirmer votre adresse avant de vous connecter.", signedIn: "Connexion réussie.", created: "Compte créé et candidature chauffeur envoyée pour vérification. Vous ne pouvez pas conduire avant validation des documents.", failed: "Impossible de terminer cette action. Réessayez." },
-    en: { confirmed: "Account created. Check your email to confirm your address before signing in.", signedIn: "You are signed in successfully.", created: "Account created and driver application submitted for review. Driving stays disabled until documents are verified.", failed: "We could not complete this action. Please try again." },
+    ar: { confirmed: "تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتأكيده قبل تسجيل الدخول.", signedIn: "تم تسجيل الدخول بنجاح.", created: "تم إنشاء الحساب وإرسال طلب الانضمام للمراجعة. لا يمكن القيادة قبل التحقق من الوثائق.", failed: "تعذر إكمال العملية. حاول مرة أخرى.", resetSent: "إذا كان البريد مسجلاً، غادي توصلك رسالة لإعادة تعيين كلمة السر." },
+    fr: { confirmed: "Compte créé. Vérifiez votre e-mail pour confirmer votre adresse avant de vous connecter.", signedIn: "Connexion réussie.", created: "Compte créé et candidature chauffeur envoyée pour vérification. Vous ne pouvez pas conduire avant validation des documents.", failed: "Impossible de terminer cette action. Réessayez.", resetSent: "Si cette adresse existe, vous recevrez un e-mail de réinitialisation." },
+    en: { confirmed: "Account created. Check your email to confirm your address before signing in.", signedIn: "You are signed in successfully.", created: "Account created and driver application submitted for review. Driving stays disabled until documents are verified.", failed: "We could not complete this action. Please try again.", resetSent: "If this email is registered, a password reset message will be sent." },
   }[lang];
+  const forgotPassword = async () => {
+    setRequestError(""); setSuccessMsg("");
+    if (!EMAIL.test(v.email)) { setErrs({ email: t.auth.errEmail }); setStatus("error"); return; }
+    setStatus("loading");
+    try { await requestPasswordReset(v.email.trim()); setSuccessMsg(messages.resetSent); setStatus("success"); }
+    catch (error) { setRequestError(error instanceof Error ? error.message : messages.failed); setStatus("error"); }
+  };
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRequestError("");
@@ -119,7 +126,7 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" | "driver" }) {
         </ul>
       )}
       <StatusMsg status={status} ok={successMsg || t.auth.notConnected} err={requestError || t.auth.errEmail} />
-      <Button type="submit" size="lg" disabled={status === "loading"}>{status === "loading" ? <><Loader2 className="animate-spin" />{t.auth.loading}</> : t.auth.submit}</Button>
+      <Button type="submit" size="lg" disabled={status === "loading"}>{status === "loading" ? <><Loader2 className="animate-spin" />{t.auth.loading}</> : t.auth.submit}</Button>\n      {mode === "signin" && <Button type="button" variant="outline" onClick={() => void forgotPassword()} disabled={status === "loading"}>{lang === "ar" ? "نسيت كلمة السر؟" : lang === "fr" ? "Mot de passe oublié ?" : "Forgot password?"}</Button>}
       <p className="text-center text-sm text-muted-foreground">
         {mode === "signin"
           ? <>{t.auth.noAccount} <Link to="/signup" className="font-semibold text-primary underline">{t.nav.signup}</Link></>
