@@ -280,9 +280,21 @@ Deno.serve(async (req: Request) => {
       if (!partnerResult.ok) throw new Error("Could not load partner profile.");
       const partner = (await partnerResult.json())[0];
       if (!partner) return fail("An approved partner profile is required.", 403, origin);
-      const requests = partner.verification_status === "approved" ? await db(`rental_requests?select=id,driver_id,city,notes,status,created_at,terms_accepted_at,partner_confirmed_at,commission_free_until,terms_version&partner_id=eq.${partner.id}&status=in.(matched,approved)&order=created_at.desc&limit=50`) : null;
+      const requests = partner.verification_status === "approved" ? await db(`rental_requests?select=id,driver_id,city,notes,status,created_at,terms_accepted_at,contact_sharing_accepted_at,partner_confirmed_at,commission_free_until,terms_version&partner_id=eq.${partner.id}&status=in.(matched,approved)&order=created_at.desc&limit=50`) : null;
       if (requests && !requests.ok) throw new Error("Could not load assigned rental requests.");
-      return json({ partner, requests: requests ? await requests.json() : [] }, 200, origin);
+      const requestRows: Json[] = requests ? await requests.json() : [];
+      const contactIds = [...new Set(requestRows.filter((r) => r.contact_sharing_accepted_at && typeof r.driver_id === "string" && /^[0-9a-f-]{36}$/i.test(r.driver_id)).map((r) => String(r.driver_id)))];
+      let contactById = new Map<string, Json>();
+      if (contactIds.length) {
+        const contacts = await db(`profiles?select=id,full_name,phone&id=in.(${contactIds.join(",")})`);
+        if (!contacts.ok) throw new Error("Could not load consented driver contact details.");
+        contactById = new Map((await contacts.json()).map((row: Json) => [String(row.id), row]));
+      }
+      const safeRequests = requestRows.map((r) => ({
+        ...r,
+        driverContact: r.contact_sharing_accepted_at && typeof r.driver_id === "string" ? contactById.get(r.driver_id) ?? null : null,
+      }));
+      return json({ partner, requests: safeRequests }, 200, origin);
     }
 
     if (action === "partner-confirm-rental") {
@@ -489,11 +501,11 @@ Deno.serve(async (req: Request) => {
       if (!partner.ok) throw new Error("Could not verify rental partner.");
       const partnerRow = (await partner.json())[0];
       if (!partnerRow) return fail("An approved rental partner is required.", 422, origin);
-      const requestResult = await db(`rental_requests?select=id,city,terms_accepted_at&id=eq.${requestId}&status=eq.pending&limit=1`);
+      const requestResult = await db(`rental_requests?select=id,city,terms_accepted_at,contact_sharing_accepted_at&id=eq.${requestId}&status=eq.pending&limit=1`);
       if (!requestResult.ok) throw new Error("Could not verify rental request.");
       const requestRow = (await requestResult.json())[0];
       if (!requestRow) return fail("Rental request is no longer pending.", 409, origin);
-      if (!requestRow.terms_accepted_at) return fail("The driver must accept rental terms before matching.", 409, origin);
+      if (!requestRow.terms_accepted_at || !requestRow.contact_sharing_accepted_at) return fail("The driver must accept rental terms and contact-sharing consent before matching.", 409, origin);
       if (requestRow.city !== "Other" && partnerRow.city !== "Other" && requestRow.city !== partnerRow.city) return fail("Choose an approved partner in the same city.", 422, origin);
       const r = await db(`rental_requests?id=eq.${requestId}&status=eq.pending&select=id,driver_id,partner_id,status,commission_free_until,terms_version,terms_accepted_at,partner_confirmed_at`, {
         method: "PATCH",
@@ -635,8 +647,9 @@ Deno.serve(async (req: Request) => {
       if (!city || (body.notes != null && notes === null)) return fail("Valid city and notes are required.", 422, origin);
       const driver = await db(`driver_profiles?select=user_id&user_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
       if (!driver.ok || (await driver.json()).length === 0) return fail("A verified driver profile is required before requesting a rental match.", 403, origin);
-      if (body.termsAccepted !== true) return fail("Please accept the rental and commission terms first.", 422, origin);
-      const r = await db("rental_requests?select=id,status,created_at", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ driver_id: user.id, city, notes, terms_version: "rental-v1", terms_accepted_at: new Date().toISOString() }) });
+      if (body.termsAccepted !== true || body.contactSharingAccepted !== true) return fail("Accept the rental terms and contact-sharing consent before requesting a match.", 422, origin);
+      const acceptedAt = new Date().toISOString();
+      const r = await db("rental_requests?select=id,status,created_at", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ driver_id: user.id, city, notes, terms_version: "rental-v2-contact-sharing", terms_accepted_at: acceptedAt, contact_sharing_accepted_at: acceptedAt }) });
       if (!r.ok) throw new Error("Rental request could not be saved.");
       return json({ request: (await r.json())[0] }, 201, origin);
     }
