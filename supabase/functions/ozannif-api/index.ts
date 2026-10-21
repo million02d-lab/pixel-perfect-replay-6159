@@ -132,10 +132,12 @@ Deno.serve(async (req: Request) => {
       const fullName = str(body.fullName, 120) ?? str(user.metadata.full_name, 120) ?? (user.email?.split("@")[0] ?? "Ozannif user");
       const phone = str(body.phone, 32);
       const language = body.language === "fr" || body.language === "en" ? body.language : "ar";
-      const r = await db("profiles?on_conflict=id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify({ id: user.id, full_name: fullName, phone, preferred_language: language }) });
+      const r = await db("profiles?on_conflict=id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify({ id: user.id, full_name: fullName, phone, preferred_language: language, role: body.accountType === "driver" ? "driver" : "passenger" }) });
       if (!r.ok) throw new Error("Could not create the account profile.");
       if (body.accountType === "driver") {
-        const d = await db("driver_profiles?on_conflict=user_id", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ user_id: user.id }) });
+        const roleUpdate = await db(`profiles?id=eq.${user.id}&role=eq.passenger`, { method: "PATCH", body: JSON.stringify({ role: "driver" }) });
+        if (!roleUpdate.ok) throw new Error("Could not update the account role.");
+        const d = await db("driver_profiles?on_conflict=user_id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify({ user_id: user.id }) });
         if (!d.ok) throw new Error("Profile created, but driver application setup failed.");
       }
       return json({ ok: true }, 200, origin);
