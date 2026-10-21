@@ -1,4 +1,4 @@
-type AuthSession = { access_token: string; refresh_token: string; expires_at: number; token_type?: string; user?: { id: string; email?: string } };
+type AuthSession = { access_token: string; refresh_token: string; expires_at: number; token_type?: string; user?: { id: string; email?: string; user_metadata?: Record<string, unknown> } };
 const SESSION_KEY = "ozannif.auth.session";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
@@ -37,11 +37,11 @@ async function authRequest(path: string, body?: unknown, token?: string) {
   if (!response.ok) throw new Error(typeof payload.msg === "string" ? payload.msg : typeof payload.message === "string" ? payload.message : typeof payload.error_description === "string" ? payload.error_description : "The account request could not be completed.");
   return payload as Record<string, unknown>;
 }
-export async function signUp(email: string, password: string, fullName: string) {
-  const result = await authRequest("signup", { email, password, data: { full_name: fullName } });
+export async function signUp(email: string, password: string, fullName: string, accountType: "passenger" | "driver" = "passenger") {
+  const result = await authRequest("signup", { email, password, data: { full_name: fullName, account_type: accountType } });
   const session = normalizeSession(result);
   if (session) writeSession(session);
-  return { session, user: result.user as { id?: string; email?: string } | undefined };
+  return { session, user: result.user as { id?: string; email?: string; user_metadata?: Record<string, unknown> } | undefined };
 }
 export async function signIn(email: string, password: string) {
   const result = await authRequest("token?grant_type=password", { email, password });
@@ -67,12 +67,12 @@ export async function getAccessToken(): Promise<string> {
   writeSession(refreshed);
   return refreshed.access_token;
 }
-export async function invokeOzannif<T = Record<string, unknown>>(body: Record<string, unknown>, options: { idempotencyKey?: string } = {}): Promise<T> {
+export async function invokeOzannif<T = Record<string, unknown>>(body: Record<string, unknown>, options: { idempotencyKey?: string; anonymous?: boolean } = {}): Promise<T> {
   const { url, key } = config();
-  const token = await getAccessToken();
+  const token = options.anonymous ? null : await getAccessToken();
   const response = await fetch(`${url}/functions/v1/ozannif-api`, {
     method: "POST",
-    headers: { apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}) },
+    headers: { apikey: key, ...(token ? { Authorization: `Bearer ${token}` } : {}), "Content-Type": "application/json", ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}) },
     body: JSON.stringify(body),
   });
   const payload = await response.json().catch(() => ({}));
