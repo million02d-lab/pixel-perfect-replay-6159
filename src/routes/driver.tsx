@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { seo } from "@/lib/seo";
 import { useI18n } from "@/i18n/I18nProvider";
-import { AuthForm, RentalRequestForm, VehicleApplicationForm } from "@/features/forms/DemoForms";
+import { AuthForm, DriverDocumentForm, RentalRequestForm, VehicleApplicationForm } from "@/features/forms/DemoForms";
 import { DemoNotice } from "@/components/site/DemoBadge";
 
 export const Route = createFileRoute("/driver")({
@@ -14,7 +14,7 @@ function Page() {
   void t;
   return (
     <>
-      <div className="zellige bg-secondary"><div className="mx-auto grid max-w-2xl gap-6 px-4 py-16"><DemoNotice /><AuthForm mode="driver" /><VehicleApplicationForm /><RentalRequestForm /></div></div>
+      <div className="zellige bg-secondary"><div className="mx-auto grid max-w-2xl gap-6 px-4 py-16"><DemoNotice /><AuthForm mode="driver" /><DriverDocumentForm /><VehicleApplicationForm /><RentalRequestForm /></div></div>
     </>
   );
 }
