@@ -18,7 +18,7 @@ The project is **not ready for public production launch**:
 - A trusted admin must be provisioned through the Supabase SQL Editor; see docs/admin-bootstrap.md.
 - Support email requires a Resend API key, support inbox and verified sender; otherwise contact messages are saved in the database only.
 - Contact throttling is best-effort per function instance and requires durable rate limiting/CAPTCHA before public promotion.
-- Realtime notifications/live GPS, payment processing, receipts, document uploads, reward redemption, cancellation reasons, ratings, full admin audit tooling, Moroccan legal/privacy review and full end-to-end testing remain incomplete.
+- Passenger live tracking/realtime notifications, payment processing, receipts, reward redemption, cancellation reasons, ratings, full admin audit tooling, Moroccan legal/privacy review and full end-to-end testing remain incomplete. Driver GPS proximity matching is active only while the driver is online and a fresh location is received.
 - The existing home page still includes truthful demo notices; do not remove them until the complete customer journey is verified in the deployed environment.
 - The app client uses a public Supabase publishable key only. Never put a service-role key in the browser or repository.
 
@@ -71,7 +71,7 @@ Initial server-validated lifecycle is implemented: requested → matched → dri
 
 ## Phase 4 — Rental-driver onboarding
 
-The dedicated driver-without-car journey is implemented in the UI and Edge Function. Remaining work: partner confirmation workflow, rental contract/document storage, and operational testing.
+The dedicated driver-without-car journey is implemented in the UI and Edge Function. A partner must explicitly confirm the external rental before the seven-day commission-free period starts. Remaining work: rental contract/document storage and operational testing.
 - Explain eligibility and required documents.
 - Collect applicant contact details and preferred city securely.
 - Store applications with explicit pending/approved/rejected/contacted status.
