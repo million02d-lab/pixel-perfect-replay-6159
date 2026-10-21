@@ -212,3 +212,45 @@ export function RentalRequestForm() {
     </form>
   );
 }
+
+ 
+export function VehicleApplicationForm() {
+  const { t, lang } = useI18n();
+  const id = useId();
+  const [v, setV] = useState({ make: "", model: "", color: "", plateNumber: "", vehicleClass: "economy", seats: "4" });
+  const [status, setStatus] = useState<Status>("idle");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const messages = {
+    ar: { title: "أضف سيارتك", sub: "خاص السيارة والوثائق يتراجعو ويتوافق عليهم قبل استقبال الرحلات.", make: "الماركة", model: "الموديل", color: "اللون", plate: "رقم اللوحة", seats: "عدد المقاعد", submit: "إرسال السيارة للمراجعة", ok: "تسجلات السيارة وهي دابا قيد المراجعة.", failed: "تعذر إرسال بيانات السيارة." },
+    fr: { title: "Ajouter votre véhicule", sub: "Le véhicule et ses documents doivent être vérifiés avant de recevoir des courses.", make: "Marque", model: "Modèle", color: "Couleur", plate: "Immatriculation", seats: "Nombre de places", submit: "Soumettre le véhicule", ok: "Véhicule enregistré en attente de vérification.", failed: "Impossible d'envoyer les informations du véhicule." },
+    en: { title: "Add your vehicle", sub: "The vehicle and documents must be reviewed before you can receive trips.", make: "Make", model: "Model", color: "Color", plate: "Plate number", seats: "Seats", submit: "Submit vehicle for review", ok: "Vehicle submitted and pending verification.", failed: "Could not submit vehicle details." },
+  }[lang];
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(""); setSuccess("");
+    if (!v.make.trim() || !v.model.trim() || !v.plateNumber.trim() || !Number.isInteger(Number(v.seats)) || Number(v.seats) < 1 || Number(v.seats) > 15) {
+      setError(messages.failed); setStatus("error"); return;
+    }
+    setStatus("loading");
+    try {
+      await invokeOzannif({ action: "vehicle-application", make: v.make.trim(), model: v.model.trim(), color: v.color.trim() || null, plateNumber: v.plateNumber.trim(), vehicleClass: v.vehicleClass, seats: Number(v.seats) });
+      setSuccess(messages.ok); setStatus("success"); setV({ make: "", model: "", color: "", plateNumber: "", vehicleClass: "economy", seats: "4" });
+    } catch (e) { setError(e instanceof Error ? e.message : messages.failed); setStatus("error"); }
+  };
+  return (
+    <form onSubmit={submit} className="grid gap-4 rounded-2xl border bg-card p-6 shadow-soft">
+      <div><h2 className="text-xl font-bold text-primary">{messages.title}</h2><p className="mt-1 text-sm text-muted-foreground">{messages.sub}</p></div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field id={`${id}make`} label={messages.make}><input id={`${id}make`} className={inputCls} value={v.make} onChange={(e) => setV({ ...v, make: e.target.value })} /></Field>
+        <Field id={`${id}model`} label={messages.model}><input id={`${id}model`} className={inputCls} value={v.model} onChange={(e) => setV({ ...v, model: e.target.value })} /></Field>
+        <Field id={`${id}color`} label={messages.color}><input id={`${id}color`} className={inputCls} value={v.color} onChange={(e) => setV({ ...v, color: e.target.value })} /></Field>
+        <Field id={`${id}plate`} label={messages.plate}><input id={`${id}plate`} dir="ltr" autoCapitalize="characters" className={inputCls} value={v.plateNumber} onChange={(e) => setV({ ...v, plateNumber: e.target.value })} /></Field>
+        <Field id={`${id}class`} label={t.booking.vehicle}><select id={`${id}class`} className={inputCls} value={v.vehicleClass} onChange={(e) => setV({ ...v, vehicleClass: e.target.value })}><option value="economy">{t.vehicles.economy}</option><option value="comfort">{t.vehicles.comfort}</option><option value="van">{t.vehicles.van}</option></select></Field>
+        <Field id={`${id}seats`} label={messages.seats}><input id={`${id}seats`} type="number" min={1} max={15} step={1} className={inputCls} value={v.seats} onChange={(e) => setV({ ...v, seats: e.target.value })} /></Field>
+      </div>
+      {status === "success" && <p role="status" className="rounded-lg bg-success/10 p-3 text-sm">{success}</p>}
+      {status === "error" && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+      <Button type="submit" disabled={status === "loading"}>{status === "loading" ? <Loader2 className="animate-spin" /> : messages.submit}</Button>
+    </form>
+  );
+}
