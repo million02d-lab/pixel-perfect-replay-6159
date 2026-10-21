@@ -5,7 +5,10 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUB
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const MAPBOX_TOKEN = Deno.env.get("MAPBOX_ACCESS_TOKEN") ?? "";
 const GOOGLE_MAPS_KEY = Deno.env.get("GOOGLE_MAPS_API_KEY") ?? "";
-const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
+const SUPPORT_EMAIL = Deno.env.get("SUPPORT_EMAIL") ?? "";
+const CONFIGURED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+const DEFAULT_ORIGINS = ["https://pixel-perfect-replay-6159.lovable.app", "http://localhost:5173", "http://127.0.0.1:5173"];
 const VEHICLES = new Set(["economy", "comfort", "van"]);
 const CITIES = new Set(["Rabat", "Sale", "Temara", "Other"]);
 const contactAttempts = new Map<string, { start: number; count: number }>();
@@ -21,7 +24,8 @@ const num = (v: unknown, min: number, max: number) => typeof v === "number" && N
 function originFor(req: Request) {
   const origin = req.headers.get("origin") ?? "";
   if (!origin) return "*";
-  if (ALLOWED_ORIGINS.length && !ALLOWED_ORIGINS.includes(origin)) return null;
+  const allowed = CONFIGURED_ORIGINS.length ? CONFIGURED_ORIGINS : DEFAULT_ORIGINS;
+  if (!allowed.includes(origin)) return null;
   return origin;
 }
 async function userFrom(req: Request) {
@@ -457,7 +461,25 @@ Deno.serve(async (req: Request) => {
       else contactAttempts.set(ip, { start: previous.start, count: previous.count + 1 });
       const r = await db("contact_messages?select=id,created_at", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ sender_id: user?.id ?? null, name, email, message }) });
       if (!r.ok) throw new Error("Message could not be saved.");
-      return json({ message: (await r.json())[0] }, 201, origin);
+      const saved = (await r.json())[0];
+      let emailSent = false;
+      if (RESEND_API_KEY && SUPPORT_EMAIL) {
+        try {
+          const mail = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: Deno.env.get("RESEND_FROM_EMAIL") ?? "Ozannif Contact <onboarding@resend.dev>",
+              to: [SUPPORT_EMAIL],
+              subject: `New Ozannif contact message #${saved.id}`,
+              text: `Name: ${name}\nEmail: ${email}\n\n${message}`,
+              reply_to: email,
+            }),
+          });
+          emailSent = mail.ok;
+        } catch { emailSent = false; }
+      }
+      return json({ message: saved, emailSent }, 201, origin);
     }
     return fail("Unknown action.", 400, origin);
   } catch (e) {
