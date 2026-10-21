@@ -144,6 +144,27 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true }, 200, origin);
     }
 
+    if (action === "register-document") {
+      if (!user) return fail("Sign in is required.", 401, origin);
+      const docType = typeof body.docType === "string" && ["identity", "driving_license", "vehicle_registration", "insurance"].includes(body.docType) ? body.docType : null;
+      const storagePath = str(body.storagePath, 512);
+      const filename = str(body.originalFilename, 180);
+      const mimeType = typeof body.mimeType === "string" && ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(body.mimeType) ? body.mimeType : null;
+      const fileSize = num(body.fileSizeBytes, 1, 10485760);
+      if (!docType || !storagePath || !filename || !mimeType || fileSize === null || !Number.isInteger(fileSize) || !storagePath.startsWith(`${user.id}/${docType}/`) || storagePath.includes("..")) return fail("Invalid document metadata.", 422, origin);
+      const driver = await db(`driver_profiles?select=user_id,verification_status&user_id=eq.${user.id}&limit=1`);
+      if (!driver.ok) throw new Error("Could not verify the driver application.");
+      const profile = (await driver.json())[0];
+      if (!profile || ["rejected", "suspended"].includes(profile.verification_status)) return fail("A current driver application is required before uploading documents.", 403, origin);
+      const r = await db("driver_documents?select=id,doc_type,review_status,created_at", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ driver_id: user.id, doc_type: docType, storage_path: storagePath, original_filename: filename, mime_type: mimeType, file_size_bytes: fileSize }),
+      });
+      if (!r.ok) throw new Error("Document metadata could not be saved.");
+      return json({ document: (await r.json())[0] }, 201, origin);
+    }
+
     if (action === "vehicle-application") {
       if (!user) return fail("Sign in is required.", 401, origin);
       const make = str(body.make, 80), model = str(body.model, 80), plate = str(body.plateNumber, 24)?.toUpperCase();
@@ -293,21 +314,60 @@ Deno.serve(async (req: Request) => {
 
     if (action === "admin-overview") {
       if (!user || !(await isAdmin(user.id))) return fail("Admin access required.", 403, origin);
-      const [passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages, driversQueue, partnersQueue, vehiclesQueue, messagesQueue, rentalsQueue, approvedPartners] = await Promise.all([
+      const [passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, pendingDocuments, newMessages, driversQueue, partnersQueue, vehiclesQueue, documentsQueue, messagesQueue, rentalsQueue, approvedPartners] = await Promise.all([
         exactCount("profiles", "&role=eq.passenger"),
         exactCount("trips"),
         exactCount("driver_profiles", "&verification_status=eq.pending"),
         exactCount("partner_profiles", "&verification_status=eq.pending"),
         exactCount("vehicles", "&verification_status=eq.pending"),
+        exactCount("driver_documents", "&review_status=eq.pending"),
         exactCount("contact_messages", "&status=eq.new"),
         db("driver_profiles?select=user_id,verification_status,created_at,profiles(full_name,phone)&verification_status=eq.pending&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
         db("partner_profiles?select=id,business_name,city,contact_email,fleet_size,verification_status,created_at&verification_status=eq.pending&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
         db("vehicles?select=id,driver_id,make,model,plate_number,vehicle_class,verification_status,created_at&verification_status=eq.pending&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
+        db("driver_documents?select=id,driver_id,doc_type,storage_path,original_filename,mime_type,file_size_bytes,review_status,created_at&review_status=eq.pending&order=created_at.asc&limit=30").then(async r => r.ok ? await r.json() : []),
         db("contact_messages?select=id,name,email,message,status,created_at&status=eq.new&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
         db("rental_requests?select=id,driver_id,city,notes,status,created_at,terms_accepted_at&status=eq.pending&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
         db("partner_profiles?select=id,business_name,city&verification_status=eq.approved&order=business_name.asc&limit=100").then(async r => r.ok ? await r.json() : []),
       ]);
-      return json({ overview: { passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages }, queues: { drivers: driversQueue, partners: partnersQueue, vehicles: vehiclesQueue, messages: messagesQueue, rentals: rentalsQueue, approvedPartners } }, 200, origin);
+      return json({ overview: { passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, pendingDocuments, newMessages }, queues: { drivers: driversQueue, partners: partnersQueue, vehicles: vehiclesQueue, documents: documentsQueue, messages: messagesQueue, rentals: rentalsQueue, approvedPartners } }, 200, origin);
+    }
+
+    if (action === "admin-document-url") {
+      if (!user || !(await isAdmin(user.id))) return fail("Admin access required.", 403, origin);
+      const documentId = str(body.documentId, 64);
+      if (!documentId || !/^[0-9a-f-]{36}$/i.test(documentId)) return fail("A valid document ID is required.", 422, origin);
+      const found = await db(`driver_documents?select=id,storage_path& id=eq.${documentId}&limit=1`.replace("& id=", "&id="));
+      if (!found.ok) throw new Error("Could not find the document.");
+      const doc = (await found.json())[0];
+      if (!doc) return fail("Document not found.", 404, origin);
+      const objectPath = String(doc.storage_path).split("/").map(encodeURIComponent).join("/");
+      const signed = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/driver-documents/${objectPath}`, {
+        method: "POST",
+        headers: { apikey: SERVICE_KEY, authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ expiresIn: 300 }),
+      });
+      if (!signed.ok) throw new Error("Could not create a temporary document link.");
+      const signedData = await signed.json();
+      const path = typeof signedData.signedURL === "string" ? signedData.signedURL : signedData.signedUrl;
+      if (typeof path !== "string") throw new Error("The storage provider did not return a signed link.");
+      return json({ url: path.startsWith("http") ? path : `${SUPABASE_URL}/storage/v1${path.startsWith("/") ? path : `/${path}`}` }, 200, origin);
+    }
+
+    if (action === "admin-review-document") {
+      if (!user || !(await isAdmin(user.id))) return fail("Admin access required.", 403, origin);
+      const documentId = str(body.documentId, 64);
+      const status = body.status;
+      if (!documentId || !/^[0-9a-f-]{36}$/i.test(documentId) || !["approved", "rejected"].includes(String(status))) return fail("Valid document and review status are required.", 422, origin);
+      const r = await db(`driver_documents?id=eq.${documentId}&select=id,driver_id,doc_type,review_status,reviewed_at`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ review_status: status, reviewed_at: new Date().toISOString(), reviewed_by: user.id }),
+      });
+      if (!r.ok) throw new Error("Document review could not be saved.");
+      const rows = await r.json();
+      if (!rows.length) return fail("Document not found.", 404, origin);
+      return json({ document: rows[0] }, 200, origin);
     }
 
     if (action === "admin-review") {
@@ -323,6 +383,24 @@ Deno.serve(async (req: Request) => {
       };
       const target = typeof targetType === "string" ? targets[targetType] : undefined;
       if (!target) return fail("Unknown review target.", 422, origin);
+      if (reviewStatus === "approved" && targetType === "driver") {
+        const docs = await db(`driver_documents?select=doc_type&driver_id=eq.${targetId}&review_status=eq.approved&doc_type=in.(identity,driving_license)`);
+        if (!docs.ok) throw new Error("Could not verify driver documents.");
+        const types = new Set((await docs.json()).map((doc: Json) => doc.doc_type));
+        if (!types.has("identity") || !types.has("driving_license")) return fail("Approve the identity and driving-license documents before approving the driver.", 409, origin);
+      }
+      if (reviewStatus === "approved" && targetType === "vehicle") {
+        const vehicleResult = await db(`vehicles?select=driver_id&id=eq.${targetId}&limit=1`);
+        if (!vehicleResult.ok) throw new Error("Could not verify the vehicle owner.");
+        const vehicle = (await vehicleResult.json())[0];
+        if (!vehicle) return fail("Vehicle not found.", 404, origin);
+        const driverResult = await db(`driver_profiles?select=verification_status&user_id=eq.${vehicle.driver_id}&limit=1`);
+        if (!driverResult.ok || (await driverResult.json())[0]?.verification_status !== "approved") return fail("Approve the driver before approving the vehicle.", 409, origin);
+        const docs = await db(`driver_documents?select=doc_type&driver_id=eq.${vehicle.driver_id}&review_status=eq.approved&doc_type=in.(vehicle_registration,insurance)`);
+        if (!docs.ok) throw new Error("Could not verify vehicle documents.");
+        const types = new Set((await docs.json()).map((doc: Json) => doc.doc_type));
+        if (!types.has("vehicle_registration") || !types.has("insurance")) return fail("Approve the vehicle registration and insurance documents before approving the vehicle.", 409, origin);
+      }
       const r = await db(`${target.table}?${target.key}=eq.${targetId}&select=*`, {
         method: "PATCH",
         headers: { Prefer: "return=representation" },
