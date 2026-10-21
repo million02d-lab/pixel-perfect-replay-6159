@@ -24,7 +24,7 @@ function writeSession(session: AuthSession | null) {
 function normalizeSession(value: Record<string, unknown>): AuthSession | null {
   if (typeof value.access_token !== "string" || typeof value.refresh_token !== "string") return null;
   const expiresIn = typeof value.expires_in === "number" ? value.expires_in : 3600;
-  return { access_token: value.access_token, refresh_token: value.refresh_token, expires_at: Math.floor(Date.now() / 1000) + expiresIn, token_type: typeof value.token_type === "string" ? value.token_type : "bearer", user: typeof value.user === "object" && value.user ? value.user as AuthSession["user"] : undefined };
+  return { access_token: value.access_token, refresh_token: value.refresh_token, expires_at: Math.floor(Date.now() / 1000) + expiresIn, token_type: typeof value.token_type === "string" ? value.token_type : "bearer", ...(typeof value.user === "object" && value.user ? { user: value.user as AuthSession["user"] } : {}) };
 }
 async function authRequest(path: string, body?: unknown, token?: string) {
   const { url, key } = config();
