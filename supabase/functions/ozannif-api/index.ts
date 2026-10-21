@@ -501,7 +501,7 @@ Deno.serve(async (req: Request) => {
       if (!driver.ok || (await driver.json()).length === 0) return fail("Only approved drivers can accept trips.", 403, origin);
       const vehicles = await db(`vehicles?select=id&driver_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
       if (!vehicles.ok || (await vehicles.json()).length === 0) return fail("An approved vehicle is required before accepting trips.", 403, origin);
-      const presence = await db(`driver_presence?select=online,latitude,longitude&user_id=eq.${user.id}&limit=1`);
+      const presence = await db(`driver_presence?select=online,latitude,longitude,last_seen_at&user_id=eq.${user.id}&limit=1`);
       if (!presence.ok) throw new Error("Could not verify driver availability.");
       const presenceRow = (await presence.json())[0];
       if (presenceRow?.online !== true || !Number.isFinite(presenceRow.latitude) || !Number.isFinite(presenceRow.longitude) || !Number.isFinite(Date.parse(String(presenceRow.last_seen_at))) || Date.now() - Date.parse(String(presenceRow.last_seen_at)) >= 60000) return fail("Go online and allow fresh location updates before accepting trips.", 409, origin);
