@@ -137,6 +137,29 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true }, 200, origin);
     }
 
+    if (action === "vehicle-application") {
+      if (!user) return fail("Sign in is required.", 401, origin);
+      const make = str(body.make, 80), model = str(body.model, 80), plate = str(body.plateNumber, 24)?.toUpperCase();
+      const color = body.color == null ? null : str(body.color, 60);
+      const vehicle = typeof body.vehicleClass === "string" && VEHICLES.has(body.vehicleClass) ? body.vehicleClass : null;
+      const seats = num(body.seats, 1, 15);
+      if (!make || !model || !plate || plate.length < 2 || !vehicle || seats === null || !Number.isInteger(seats) || (body.color != null && color === null)) return fail("Complete the vehicle details with valid values.", 422, origin);
+      const driver = await db(`driver_profiles?select=user_id,verification_status&user_id=eq.${user.id}&limit=1`);
+      if (!driver.ok) throw new Error("Could not verify the driver application.");
+      const profile = (await driver.json())[0];
+      if (!profile || ["rejected", "suspended"].includes(profile.verification_status)) return fail("A current driver application is required before adding a vehicle.", 403, origin);
+      const r = await db("vehicles?select=id,driver_id,make,model,plate_number,vehicle_class,seats,verification_status,created_at", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ driver_id: user.id, make, model, plate_number: plate, color, vehicle_class: vehicle, seats }),
+      });
+      if (!r.ok) {
+        if (r.status === 409) return fail("This plate number is already registered.", 409, origin);
+        throw new Error("Vehicle application could not be saved.");
+      }
+      return json({ vehicle: (await r.json())[0] }, 201, origin);
+    }
+
     if (action === "geocode") {
       const query = str(body.query, 200);
       if (!query) return fail("Enter a pickup or destination.", 422, origin);
