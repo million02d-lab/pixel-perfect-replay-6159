@@ -3,7 +3,7 @@ import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/I18nProvider";
-import { invokeOzannif, signIn, signUp } from "@/lib/supabase";
+import { invokeOzannif, signIn, signUp, uploadDriverDocument, type DriverDocumentType } from "@/lib/supabase";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type Status = "idle" | "loading" | "success" | "error";
@@ -251,6 +251,43 @@ export function VehicleApplicationForm() {
       {status === "success" && <p role="status" className="rounded-lg bg-success/10 p-3 text-sm">{success}</p>}
       {status === "error" && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={status === "loading"}>{status === "loading" ? <Loader2 className="animate-spin" /> : messages.submit}</Button>
+    </form>
+  );
+}
+
+ 
+export function DriverDocumentForm() {
+  const { lang } = useI18n();
+  const id = useId();
+  const [docType, setDocType] = useState<DriverDocumentType>("identity");
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<Status>("idle");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const labels = {
+    ar: { title: "وثائق التحقق", sub: "رفع ملفات خاصة لا يراها إلا صاحب الحساب والإدارة. PDF أو JPG أو PNG أو WebP، بحد أقصى 10 ميغابايت للملف.", type: "نوع الوثيقة", identity: "البطاقة الوطنية", license: "رخصة السياقة", registration: "البطاقة الرمادية", insurance: "التأمين", file: "اختيار ملف", send: "رفع الوثيقة بأمان", ok: "ترفع الملف وهو الآن قيد المراجعة.", fail: "تعذر رفع الوثيقة." },
+    fr: { title: "Documents de vérification", sub: "Fichiers privés visibles uniquement par vous et l'administration. PDF, JPG, PNG ou WebP, 10 Mo maximum.", type: "Type de document", identity: "Pièce d'identité", license: "Permis de conduire", registration: "Carte grise", insurance: "Assurance", file: "Choisir un fichier", send: "Téléverser en sécurité", ok: "Document téléversé et en attente de vérification.", fail: "Impossible de téléverser le document." },
+    en: { title: "Verification documents", sub: "Private files visible only to you and administrators. PDF, JPG, PNG or WebP, maximum 10 MB.", type: "Document type", identity: "Identity document", license: "Driving licence", registration: "Vehicle registration", insurance: "Insurance", file: "Choose file", send: "Upload securely", ok: "Document uploaded and pending review.", fail: "Could not upload the document." },
+  }[lang];
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(""); setSuccess("");
+    if (!file) { setError(labels.file); setStatus("error"); return; }
+    setStatus("loading");
+    try {
+      await uploadDriverDocument(file, docType);
+      setSuccess(labels.ok); setStatus("success"); setFile(null);
+      const input = document.getElementById(`${id}file`) as HTMLInputElement | null;
+      if (input) input.value = "";
+    } catch (e) { setError(e instanceof Error ? e.message : labels.fail); setStatus("error"); }
+  };
+  return (
+    <form onSubmit={submit} className="grid gap-4 rounded-2xl border bg-card p-6 shadow-soft">
+      <div><h2 className="text-xl font-bold text-primary">{labels.title}</h2><p className="mt-1 text-sm text-muted-foreground">{labels.sub}</p></div>
+      <Field id={`${id}type`} label={labels.type}><select id={`${id}type`} className={inputCls} value={docType} onChange={(e) => setDocType(e.target.value as DriverDocumentType)}><option value="identity">{labels.identity}</option><option value="driving_license">{labels.license}</option><option value="vehicle_registration">{labels.registration}</option><option value="insurance">{labels.insurance}</option></select></Field>
+      <Field id={`${id}file`} label={labels.file}><input id={`${id}file`} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className={inputCls} onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} /></Field>
+      {status === "success" && <p role="status" className="rounded-lg bg-success/10 p-3 text-sm">{success}</p>}
+      {status === "error" && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+      <Button type="submit" disabled={status === "loading"}>{status === "loading" ? <Loader2 className="animate-spin" /> : labels.send}</Button>
     </form>
   );
 }
