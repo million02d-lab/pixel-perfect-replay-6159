@@ -199,12 +199,9 @@ create policy "Trip events visible to trip participants" on public.trip_events f
 create policy "Rental requests select own" on public.rental_requests for select to authenticated using ((select auth.uid()) = driver_id);
 create policy "Rental requests insert own" on public.rental_requests for insert to authenticated with check ((select auth.uid()) = driver_id);
 create policy "Loyalty ledger select own" on public.loyalty_ledger for select to authenticated using ((select auth.uid()) = passenger_id);
-create policy "Current active fare rules are readable" on public.fare_rules for select to anon, authenticated using (active = true and valid_from <= now() and (valid_until is null or valid_until > now()));
-create policy "Contact messages are backend only" on public.contact_messages for all to anon, authenticated using (false) with check (false);
 
 revoke all on all tables in schema public from anon, authenticated;
-grant usage on schema public to anon, authenticated;
-grant select on public.fare_rules to anon, authenticated;
+grant usage on schema public to authenticated;
 grant select on public.profiles to authenticated;
 grant insert (id, full_name, phone, preferred_language) on public.profiles to authenticated;
 grant update (full_name, phone, preferred_language) on public.profiles to authenticated;
