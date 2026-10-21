@@ -35,5 +35,5 @@ Run this only as the trusted project owner in the Supabase SQL Editor. Do not ex
 - Configure email confirmation / SMTP for Supabase Auth, and add the exact `/reset-password` redirect URL to Supabase Auth's allowed redirect URLs.
 - Review and approve the legal fare schedule before creating any active fare rules.
 - Verify driver and vehicle documents before approving a driver.
-- Verify an approved rental partner before matching a rental request; the 7-day commission-free period begins at the recorded match time.
+- Verify an approved rental partner before matching a rental request; the seven-day commission-free period begins only after the partner explicitly confirms the real rental agreement.
 - Add durable public-contact rate limiting and CAPTCHA/Turnstile before advertising the public form widely.
