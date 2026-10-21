@@ -40,7 +40,7 @@ async function authRequest(path: string, body?: unknown, token?: string) {
 export async function signUp(email: string, password: string, fullName: string, accountType: "passenger" | "driver" = "passenger") {
   const result = await authRequest("signup", { email, password, data: { full_name: fullName, account_type: accountType } });
   const session = normalizeSession(result);
-  if (session) writeSession(session);
+  if (session) writeSession(session); else writeSession(null);
   return { session, user: result.user as { id?: string; email?: string; user_metadata?: Record<string, unknown> } | undefined };
 }
 export async function signIn(email: string, password: string) {
