@@ -19,7 +19,7 @@ Project: `OZANNIF` (region `eu-central-1`). The initial database migration was a
 
 ## Security baseline
 
-- Row Level Security is enabled on all ten application tables.
+- Row Level Security is enabled on all twelve application tables.
 - Profile, driver, partner and vehicle rows have owner-scoped policies.
 - Trip reads are restricted to the passenger and assigned driver.
 - Rental request creation/read is owner-scoped.
@@ -27,29 +27,29 @@ Project: `OZANNIF` (region `eu-central-1`). The initial database migration was a
 - Current active fare rules can be read by the public site; writes are not granted to browser roles.
 - Contact messages are deliberately blocked from direct browser-role access; the Edge Function saves them using server-side credentials and applies best-effort per-instance rate limiting.
 - The `private` schema is not granted to browser roles.
-- No service-role/secret key is configured in client code.
+- No service-role/secret key is configured in client code. Direct table write privileges are revoked from anon and authenticated; the server-side Edge Function is the only application mutation path. Default privileges for future public tables created by the migration role also deny browser-role writes.
 
 ## Important remaining work
 
-This migration is a **database foundation**, not a completed ride-hailing backend. It intentionally does not yet provide public client-side write access to trips, fare rules, review status, reward entries, or trip events. These operations must be implemented through authenticated server-side actions / Edge Functions with authorization, idempotency, rate limits, audit events and server-verified route metrics.
-
-Before launch, implement and test:
-1. Signup/sign-in integration and a safe profile provisioning flow.
-2. Server-side fare quoting from a real directions provider; do not trust browser-supplied distance, duration, fare, commission or role.
-3. Atomic trip request and driver matching, plus validated trip state transitions.
-4. Admin-only driver/vehicle/partner and document review with server-side role checks; driver approval requires approved identity and driving-licence documents, and vehicle approval requires approved registration and insurance documents.
-5. Contact form endpoint with abuse prevention.
-6. Reward issuance only for verified completed trips, with duplicate prevention.
-7. Rental matching and one-week commission-free terms with explicit acceptance and server-calculated eligibility.
-8. RLS and authorization tests using passenger, driver, partner, admin and unauthenticated test identities.
-9. Configure Mapbox/Google Maps, allowed origins, verified Resend sender and durable public-contact abuse prevention before public launch.
-10. Provision at least one admin through the trusted Supabase SQL Editor only; see [admin bootstrap](admin-bootstrap.md).
+The backend foundation is implemented but not production-launched. Complete these environment and operational gates:
+1. Configure and verify a real directions/geocoding provider and domain restrictions; the visual map panel is still a placeholder.
+2. Add reviewed active fare rules for every vehicle class, with validated fuel prices, consumption assumptions, minimum fares and commission terms. No active rates are currently seeded, so booking quotes fail closed.
+3. Test the full passenger-to-driver trip lifecycle against real authenticated test accounts, including race conditions, cancellations, stale GPS and idempotent retries.
+4. Finish loyalty reward redemption and define how any free-trip/hour reward is funded and compensated to drivers before activation.
+5. Configure Resend sender/domain and verify support/contact delivery; add durable rate limiting and CAPTCHA/Turnstile to public anonymous contact.
+6. Configure Auth email confirmation, SMTP and the exact /reset-password redirect allowlist.
+7. Provision the trusted administrator through the SQL Editor and test every admin review action with separate passenger, driver, partner, admin and unauthenticated identities.
+8. Verify driver/vehicle/partner documents, private Storage access, retention/deletion procedures and access logging.
+9. Complete Moroccan transport/licensing, insurance, consumer protection, privacy, data-retention and contractual review with qualified local counsel.
+10. Complete staging acceptance tests, monitoring/alerting, backup/restore drills and incident-response procedures before enabling real trips.
 
 ## Current verification
 
-After the migration, the Supabase table inspection confirmed all ten tables and RLS enabled. Security advisors initially reported the expected lack of direct client policies on backend-only `contact_messages` and read-only-by-policy `fare_rules`; policies were then added for active fare-rule reads and to explicitly deny browser-role contact writes. Performance advisor findings for missing indexes on three foreign-key columns were addressed. Re-run the Supabase security and performance advisors after the next schema changes and confirm that the current findings are clear.
-
-This document is a deployment record, not a substitute for automated integration tests or a security audit.
+- Supabase inspection confirms all twelve public application tables have RLS enabled.
+- The security advisor currently reports no findings.
+- Read-only SQL checks confirm anon and authenticated cannot update profiles, driver approvals or vehicle approvals, while authenticated users retain RLS-scoped profile reads.
+- Performance advisor output contains unused-index notices, which are informational for this newly provisioned, currently empty database; do not remove indexes without workload evidence.
+- These checks do not replace automated end-to-end authorization tests or a professional security audit.
 
 ## Edge Function status
 
