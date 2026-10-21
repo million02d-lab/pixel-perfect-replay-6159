@@ -11,7 +11,7 @@ The database foundation is applied: the public tables have RLS enabled, private 
 **Ozannif is not yet ready for public production launch.** Verified launch blockers and incomplete integrations:
 - No active fare rules are configured for any vehicle class; quotes intentionally fail closed until approved rates and fuel/consumption inputs are entered.
 - A real routing provider is not confirmed configured. `MAPBOX_ACCESS_TOKEN` or `GOOGLE_MAPS_API_KEY` is required for live route distance/duration and server-side fare quotes.
-- The current map panel is still a placeholder; the full passenger live map/tracking and real-time notifications are not finished.
+- The map panel can show an OpenStreetMap embed when pickup and destination coordinates are resolved, but it does not yet show a live driver position or a route line; without resolved points it falls back to a visual placeholder. Passenger live tracking and real-time notifications are not finished.
 - `RESEND_API_KEY`, `SUPPORT_EMAIL`, and a verified `RESEND_FROM_EMAIL` are needed for email delivery.
 - The full loyalty reward redemption flow, cancellation/refund/payment integrations, and comprehensive operational monitoring still need implementation and testing.
 - Legal, licensing, privacy, data-retention, consumer terms and Moroccan transport compliance require qualified local review before real rides.
@@ -61,7 +61,7 @@ Core rules:
 
 ## Maps
 
-`src/features/booking/MapPanel.tsx` currently renders a placeholder SVG. A production implementation needs a configured geocoding/directions provider, domain-restricted keys, route validation and server-side quote calculation. Do not label a placeholder map as live GPS.
+`src/features/booking/MapPanel.tsx` renders an OpenStreetMap embed when valid coordinates are available and a decorative placeholder otherwise. A production implementation still needs a configured geocoding/directions provider, domain-restricted keys, a real route line, live driver tracking, route validation and server-side quote calculation. Do not label a map embed as live GPS.
 
 ## Launch gate
 
