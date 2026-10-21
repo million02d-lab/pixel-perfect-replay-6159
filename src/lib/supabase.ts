@@ -57,6 +57,11 @@ export async function signUp(email: string, password: string, fullName: string, 
   if (session) writeSession(session); else writeSession(null);
   return { session, user: result["user"] as AuthUser | undefined };
 }
+export async function requestPasswordReset(email: string) {
+  const redirect = typeof window === "undefined" ? undefined : `${window.location.origin}/signin`;
+  const path = redirect ? `recover?redirect_to=${encodeURIComponent(redirect)}` : "recover";
+  await authRequest(path, { email });
+}
 export async function signIn(email: string, password: string) {
   const result = await authRequest("token?grant_type=password", { email, password });
   const session = normalizeSession(result);
