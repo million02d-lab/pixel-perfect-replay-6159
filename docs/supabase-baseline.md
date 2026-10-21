@@ -14,6 +14,7 @@ Project: `OZANNIF` (region `eu-central-1`). The initial database migration was a
 - `rental_requests`: driver requests to find a partner vehicle, with terms and commission-free eligibility fields.
 - `loyalty_ledger`: passenger reward accounting ledger.
 - `contact_messages`: contact form submissions, reserved for backend processing.
+- `driver_presence`: server-managed online/offline state for approved drivers.
 
 ## Security baseline
 
@@ -23,7 +24,7 @@ Project: `OZANNIF` (region `eu-central-1`). The initial database migration was a
 - Rental request creation/read is owner-scoped.
 - Loyalty ledger is read-only to the passenger who owns it.
 - Current active fare rules can be read by the public site; writes are not granted to browser roles.
-- Contact messages are deliberately blocked from direct browser-role access until a rate-limited server-side submission endpoint is implemented.
+- Contact messages are deliberately blocked from direct browser-role access; the Edge Function saves them using server-side credentials and applies best-effort per-instance rate limiting.
 - The `private` schema is not granted to browser roles.
 - No service-role/secret key is configured in client code.
 
@@ -40,9 +41,19 @@ Before launch, implement and test:
 6. Reward issuance only for verified completed trips, with duplicate prevention.
 7. Rental matching and one-week commission-free terms with explicit acceptance and server-calculated eligibility.
 8. RLS and authorization tests using passenger, driver, partner, admin and unauthenticated test identities.
+9. Configure Mapbox/Google Maps, allowed origins, verified Resend sender and durable public-contact abuse prevention before public launch.
+10. Provision at least one admin through the trusted Supabase SQL Editor only; see [admin bootstrap](admin-bootstrap.md).
 
 ## Current verification
 
 After the migration, the Supabase table inspection confirmed all ten tables and RLS enabled. Security advisors initially reported the expected lack of direct client policies on backend-only `contact_messages` and read-only-by-policy `fare_rules`; policies were then added for active fare-rule reads and to explicitly deny browser-role contact writes. Performance advisor findings for missing indexes on three foreign-key columns were addressed. Re-run the Supabase security and performance advisors after the next schema changes and confirm that the current findings are clear.
 
 This document is a deployment record, not a substitute for automated integration tests or a security audit.
+
+## Edge Function status
+
+The `ozannif-api` Edge Function is deployed and currently handles account-profile provisioning, geocoding, server-side quote calculation, trip creation, driver availability, trip acceptance and status transitions, loyalty points on completion, partner/vehicle applications, rental requests, admin reviews, fare-rule management, rental matching, and contact persistence. Its source is versioned at `supabase/functions/ozannif-api/index.ts`.
+
+The function is configured with gateway JWT verification disabled because the public contact action accepts anonymous submissions. Every other action independently validates the bearer token through Supabase Auth; admin actions additionally check the server-side `profiles.role`. Configure `ALLOWED_ORIGINS` explicitly before production. Public contact throttling is currently per-instance only and needs a durable rate limiter/CAPTCHA for a public launch.
+
+Live route geocoding and directions will fail closed until `MAPBOX_ACCESS_TOKEN` or `GOOGLE_MAPS_API_KEY` is configured. Fare quotes and trip creation will fail closed until active fare rules are reviewed and entered. Email delivery is optional and requires `RESEND_API_KEY`, `SUPPORT_EMAIL` and a verified `RESEND_FROM_EMAIL`. No production fare rates have been seeded.
