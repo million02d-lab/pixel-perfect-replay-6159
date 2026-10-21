@@ -35,7 +35,14 @@ export function ContactForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!v.name.trim() || !EMAIL.test(v.email) || !v.message.trim()) return setStatus("error");
-    setStatus("loading"); await fakeDelay(); setStatus("success"); setV({ name: "", email: "", message: "" });
+    setStatus("loading");
+    try {
+      await invokeOzannif({ action: "contact", name: v.name.trim(), email: v.email.trim(), message: v.message.trim() }, { anonymous: true });
+      setStatus("success");
+      setV({ name: "", email: "", message: "" });
+    } catch {
+      setStatus("error");
+    }
   };
   return (
     <form onSubmit={submit} noValidate className="grid gap-4 rounded-2xl border bg-card p-6 shadow-soft">
