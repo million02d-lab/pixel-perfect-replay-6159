@@ -3,6 +3,7 @@ import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/I18nProvider";
+import { invokeOzannif, signIn, signUp } from "@/lib/supabase";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type Status = "idle" | "loading" | "success" | "error";
@@ -48,36 +49,66 @@ export function ContactForm() {
 }
 
 export function AuthForm({ mode }: { mode: "signin" | "signup" | "driver" }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const id = useId();
   const [status, setStatus] = useState<Status>("idle");
   const [errs, setErrs] = useState<Partial<Record<"name" | "email" | "password", string>>>({});
   const [v, setV] = useState({ name: "", email: "", phone: "", password: "" });
+  const [successMsg, setSuccessMsg] = useState("");
+  const [requestError, setRequestError] = useState("");
   const needsName = mode !== "signin";
+  const messages = {
+    ar: { confirmed: "تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتأكيده قبل تسجيل الدخول.", signedIn: "تم تسجيل الدخول بنجاح.", created: "تم إنشاء الحساب وإرسال طلب الانضمام للمراجعة. لا يمكن القيادة قبل التحقق من الوثائق.", failed: "تعذر إكمال العملية. حاول مرة أخرى." },
+    fr: { confirmed: "Compte créé. Vérifiez votre e-mail pour confirmer votre adresse avant de vous connecter.", signedIn: "Connexion réussie.", created: "Compte créé et candidature chauffeur envoyée pour vérification. Vous ne pouvez pas conduire avant validation des documents.", failed: "Impossible de terminer cette action. Réessayez." },
+    en: { confirmed: "Account created. Check your email to confirm your address before signing in.", signedIn: "You are signed in successfully.", created: "Account created and driver application submitted for review. Driving stays disabled until documents are verified.", failed: "We could not complete this action. Please try again." },
+  }[lang];
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setRequestError("");
+    setSuccessMsg("");
     const er: Partial<Record<"name" | "email" | "password", string>> = {};
     if (needsName && !v.name.trim()) er.name = t.auth.errName;
     if (!EMAIL.test(v.email)) er.email = t.auth.errEmail;
     if (v.password.length < 8) er.password = t.auth.errPass;
     setErrs(er);
-    if (Object.keys(er).length) return setStatus("idle");
-    setStatus("loading"); await fakeDelay(); setStatus("success");
+    if (Object.keys(er).length) { setStatus("idle"); return; }
+    setStatus("loading");
+    try {
+      if (mode === "signin") {
+        const session = await signIn(v.email.trim(), v.password);
+        const metadataType = session.user?.user_metadata?.account_type;
+        await invokeOzannif({ action: "ensure-profile", language: lang, accountType: metadataType === "driver" ? "driver" : "passenger" });
+        setSuccessMsg(messages.signedIn);
+      } else {
+        const result = await signUp(v.email.trim(), v.password, v.name.trim(), mode === "driver" ? "driver" : "passenger");
+        if (result.session) {
+          await invokeOzannif({ action: "ensure-profile", fullName: v.name.trim(), phone: mode === "driver" ? v.phone.trim() || null : null, language: lang, accountType: mode === "driver" ? "driver" : "passenger" });
+          setSuccessMsg(mode === "driver" ? messages.created : messages.signedIn);
+        } else {
+          setSuccessMsg(messages.confirmed);
+        }
+      }
+      setStatus("success");
+      setV({ name: "", email: "", phone: "", password: "" });
+    } catch (error) {
+      setStatus("error");
+      setRequestError(error instanceof Error ? error.message : messages.failed);
+    }
   };
   const title = mode === "signin" ? t.auth.signinT : mode === "driver" ? t.auth.driverT : t.auth.signupT;
   return (
     <form onSubmit={submit} noValidate className="grid gap-4 rounded-2xl border bg-card p-6 shadow-panel md:p-8">
       <h1 className="text-2xl font-bold text-primary">{title}</h1>
-      {needsName && <Field id={`${id}n`} label={t.auth.name} error={errs.name}><input id={`${id}n`} aria-invalid={!!errs.name} className={inputCls} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>}
+      {needsName && <Field id={`${id}n`} label={t.auth.name} error={errs.name}><input id={`${id}n`} autoComplete="name" aria-invalid={!!errs.name} className={inputCls} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>}
       <Field id={`${id}e`} label={t.auth.email} error={errs.email}><input id={`${id}e`} type="email" dir="ltr" autoComplete="email" aria-invalid={!!errs.email} className={inputCls} value={v.email} onChange={(e) => setV({ ...v, email: e.target.value })} /></Field>
-      {mode === "driver" && <Field id={`${id}p`} label={t.auth.phone}><input id={`${id}p`} type="tel" dir="ltr" className={inputCls} value={v.phone} onChange={(e) => setV({ ...v, phone: e.target.value })} /></Field>}
-      <Field id={`${id}w`} label={t.auth.password} error={errs.password}><input id={`${id}w`} type="password" dir="ltr" aria-invalid={!!errs.password} className={inputCls} value={v.password} onChange={(e) => setV({ ...v, password: e.target.value })} /></Field>
+      {mode === "driver" && <Field id={`${id}p`} label={t.auth.phone}><input id={`${id}p`} type="tel" autoComplete="tel" dir="ltr" className={inputCls} value={v.phone} onChange={(e) => setV({ ...v, phone: e.target.value })} /></Field>}
+      <Field id={`${id}w`} label={t.auth.password} error={errs.password}><input id={`${id}w`} type="password" dir="ltr" autoComplete={mode === "signin" ? "current-password" : "new-password"} aria-invalid={!!errs.password} className={inputCls} value={v.password} onChange={(e) => setV({ ...v, password: e.target.value })} /></Field>
       {mode === "driver" && (
         <ul className="grid gap-1 rounded-lg bg-secondary p-3 text-sm">
-          {t.checklist.map((c) => <li key={c} className="flex gap-2"><CheckCircle2 className="h-4 w-4 shrink-0 text-gold" />{c}</li>)}
+          {t.checklist.map((item) => <li key={item} className="flex gap-2"><CheckCircle2 className="h-4 w-4 shrink-0 text-gold" />{item}</li>)}
         </ul>
       )}
-      <StatusMsg status={status} ok={t.auth.notConnected} />
+      <StatusMsg status={status} ok={successMsg || t.auth.notConnected} err={requestError || t.auth.errEmail} />
       <Button type="submit" size="lg" disabled={status === "loading"}>{status === "loading" ? <><Loader2 className="animate-spin" />{t.auth.loading}</> : t.auth.submit}</Button>
       <p className="text-center text-sm text-muted-foreground">
         {mode === "signin"
