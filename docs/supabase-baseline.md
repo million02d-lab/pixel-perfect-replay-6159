@@ -53,7 +53,7 @@ This document is a deployment record, not a substitute for automated integration
 
 ## Edge Function status
 
-The `ozannif-api` Edge Function is deployed and currently handles account-profile provisioning, geocoding, server-side quote calculation, trip creation, driver availability, trip acceptance and status transitions, loyalty points on completion, partner/vehicle applications, private driver-document registration/review, rental requests, admin reviews, fare-rule management, rental matching, and contact persistence. Its source is versioned at `supabase/functions/ozannif-api/index.ts`.
+The `ozannif-api` Edge Function is deployed and currently handles account-profile provisioning, geocoding, server-side quote calculation, trip creation, driver availability, trip acceptance and status transitions, loyalty points on completion, partner/vehicle applications, private driver-document registration/review, rental requests, admin reviews, fare-rule management, rental matching with partner-confirmed seven-day commission-free eligibility, and contact persistence. Its source is versioned at `supabase/functions/ozannif-api/index.ts`.
 
 The function is configured with gateway JWT verification disabled because the public contact action accepts anonymous submissions. Every other action independently validates the bearer token through Supabase Auth; admin actions additionally check the server-side `profiles.role`. Configure `ALLOWED_ORIGINS` explicitly before production. Public contact throttling is currently per-instance only and needs a durable rate limiter/CAPTCHA for a public launch.
 
