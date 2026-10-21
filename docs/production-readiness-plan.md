@@ -10,7 +10,7 @@ The React + TypeScript + TanStack Start frontend now includes:
 - Driver profile, vehicle application, partner application, and driver-without-car rental request forms.
 - Passenger trip history and loyalty balance, driver availability/trip lifecycle, and an admin console with review queues, fare-rule creation and rental matching.
 - A server-side quote flow that geocodes locations within the configured Rabat–Salé area, obtains directions, calculates fuel cost from fare-rule fuel price and vehicle consumption, and persists trip requests with an idempotency key.
-- An OpenStreetMap view for resolved trip locations and tests/CI for lint, unit tests, typecheck and build.
+- An OpenStreetMap view for resolved trip locations, private driver document upload/review, password recovery, proximity-based driver matching (GPS shared only while online), and tests/CI for lint, unit tests, typecheck and build.
 
 The project is **not ready for public production launch**:
 - Mapbox or Google Maps secrets must be configured in Supabase Edge Function secrets; live geocoding/directions fail closed until then.
@@ -39,7 +39,7 @@ Work in small, reviewable pull requests. Do not remove truthful availability not
 Supabase is confirmed as the primary backend. Keep privileged writes in Edge Functions and enforce RLS/ownership on all browser-accessible tables.
 
 Required capabilities:
-- Passenger and driver identity, email confirmation/session handling and sign-out. Password reset and phone verification still need implementation.
+- Passenger and driver identity, email confirmation/session handling and sign-out. Phone verification still needs implementation; password recovery is now implemented.
 - A server-controlled role model for passenger, driver, operations/admin. Never trust a role supplied by client-side metadata.
 - Driver profile, vehicle details, document review status, and approval workflow.
 - Row-level access control for every exposed data table; ownership checks for every read/write; deny by default.
