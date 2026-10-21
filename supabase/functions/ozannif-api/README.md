@@ -9,6 +9,8 @@ The `ozannif-api` function is deployed to the connected Supabase project. The re
 - `quote`: calculates route distance/duration through the configured directions provider and uses an active database fare rule, including a fuel component based on fuel price and assumed litres per 100 km.
 - `create-trip`: recalculates the route and fare on the server, persists a trip, and uses a caller-supplied UUID idempotency key.
 - `partner-application`: persists a partner application as pending review.
+- `vehicle-application`, `register-document`: persist vehicle applications and private driver-document metadata; files are stored in a non-public Storage bucket.
+- `admin-review-document`, `admin-document-url`: allow admins to review document metadata and generate five-minute signed URLs for private files.
 - `rental-request`: requires an approved driver profile and explicit acceptance of the recorded terms version.
 - `contact`: saves a public contact message and sends a support email when Resend is configured. It has a best-effort per-instance rate limit; this is not a substitute for durable rate limiting or CAPTCHA.
 - `my-trips`, `my-loyalty`, `driver-dashboard`: return authenticated, user-scoped dashboard data.
