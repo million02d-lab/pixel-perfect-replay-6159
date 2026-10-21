@@ -10,7 +10,10 @@ The `ozannif-api` function is deployed to the connected Supabase project. The re
 - `create-trip`: recalculates the route and fare on the server, persists a trip, and uses a caller-supplied UUID idempotency key.
 - `partner-application`: persists a partner application as pending review.
 - `rental-request`: requires an approved driver profile and explicit acceptance of the recorded terms version.
-- `contact`: saves a public contact message. It has a best-effort per-instance rate limit; this is not a substitute for durable rate limiting or CAPTCHA.
+- `contact`: saves a public contact message and sends a support email when Resend is configured. It has a best-effort per-instance rate limit; this is not a substitute for durable rate limiting or CAPTCHA.
+- `my-trips`, `my-loyalty`, `driver-dashboard`: return authenticated, user-scoped dashboard data.
+- `set-driver-availability`, `accept-trip`, `transition-trip`: enforce approved driver/vehicle checks and server-side trip state transitions.
+- `admin-overview`, `admin-review`, `admin-create-fare-rule`, `admin-match-rental`: require an admin role stored in `profiles.role`; they are not available to ordinary users.
 
 ## Required deployment configuration
 
@@ -19,6 +22,7 @@ Supabase provides its own project URL and server database credentials to Edge Fu
 Set the following secrets in Supabase Function Secrets before enabling real route pricing:
 - `MAPBOX_ACCESS_TOKEN` **or** `GOOGLE_MAPS_API_KEY` (geocoding and driving directions)
 - `ALLOWED_ORIGINS` as a comma-separated allowlist of the exact production and preview origins that should be allowed to call the function
+- `RESEND_API_KEY`, `SUPPORT_EMAIL`, and a verified `RESEND_FROM_EMAIL` for support email delivery (optional; without these, messages are saved to the database only)
 
 Restrict provider keys to the necessary APIs and usage limits. For Google Maps, enable Geocoding API and Directions API and configure billing/quotas. For Mapbox, enable Search and Directions.
 
