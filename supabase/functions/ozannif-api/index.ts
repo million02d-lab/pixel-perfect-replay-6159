@@ -291,7 +291,7 @@ Deno.serve(async (req: Request) => {
     if (action === "admin-overview") {
       if (!user || !(await isAdmin(user.id))) return fail("Admin access required.", 403, origin);
       const [passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages, driversQueue, partnersQueue, vehiclesQueue, messagesQueue, rentalsQueue, approvedPartners] = await Promise.all([
-        exactCount("profiles"),
+        exactCount("profiles", "&role=eq.passenger"),
         exactCount("trips"),
         exactCount("driver_profiles", "&verification_status=eq.pending"),
         exactCount("partner_profiles", "&verification_status=eq.pending"),
