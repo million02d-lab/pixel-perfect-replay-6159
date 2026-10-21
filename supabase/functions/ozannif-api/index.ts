@@ -274,6 +274,37 @@ Deno.serve(async (req: Request) => {
       return json({ trips: await r.json() }, 200, origin);
     }
 
+    if (action === "partner-dashboard") {
+      if (!user) return fail("Sign in is required.", 401, origin);
+      const partnerResult = await db(`partner_profiles?select=id,business_name,city,verification_status&owner_user_id=eq.${user.id}&limit=1`);
+      if (!partnerResult.ok) throw new Error("Could not load partner profile.");
+      const partner = (await partnerResult.json())[0];
+      if (!partner) return fail("An approved partner profile is required.", 403, origin);
+      const requests = partner.verification_status === "approved" ? await db(`rental_requests?select=id,driver_id,city,notes,status,created_at,terms_accepted_at,partner_confirmed_at,commission_free_until,terms_version&partner_id=eq.${partner.id}&status=in.(matched,approved)&order=created_at.desc&limit=50`) : null;
+      if (requests && !requests.ok) throw new Error("Could not load assigned rental requests.");
+      return json({ partner, requests: requests ? await requests.json() : [] }, 200, origin);
+    }
+
+    if (action === "partner-confirm-rental") {
+      if (!user) return fail("Sign in is required.", 401, origin);
+      const requestId = str(body.requestId, 64);
+      if (!requestId || !/^[0-9a-f-]{36}$/i.test(requestId) || body.confirmed !== true) return fail("Confirm the rental agreement to continue.", 422, origin);
+      const partnerResult = await db(`partner_profiles?select=id&owner_user_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
+      if (!partnerResult.ok) throw new Error("Could not verify partner profile.");
+      const partner = (await partnerResult.json())[0];
+      if (!partner) return fail("An approved partner profile is required.", 403, origin);
+      const now = new Date();
+      const until = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const r = await db(`rental_requests?id=eq.${requestId}&partner_id=eq.${partner.id}&status=eq.matched&select=id,driver_id,partner_id,status,partner_confirmed_at,commission_free_until,terms_version`, {
+        method: "PATCH", headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ status: "approved", partner_confirmed_at: now.toISOString(), commission_free_until: until, terms_version: "rental-v1-confirmed" }),
+      });
+      if (!r.ok) throw new Error("Rental confirmation could not be saved.");
+      const rows = await r.json();
+      if (!rows.length) return fail("This request is no longer awaiting partner confirmation.", 409, origin);
+      return json({ request: rows[0] }, 200, origin);
+    }
+
     if (action === "my-loyalty") {
       if (!user) return fail("Sign in is required.", 401, origin);
       const r = await db(`loyalty_ledger?select=id,trip_id,points_delta,reason,created_at&passenger_id=eq.${user.id}&order=created_at.desc&limit=100`);
@@ -291,6 +322,8 @@ Deno.serve(async (req: Request) => {
       const presence = presenceResult.ok ? (await presenceResult.json())[0] ?? { online: false } : { online: false };
       const assignedResult = await db(`trips?select=id,status,pickup_label,destination_label,vehicle_class,quoted_fare_mad,platform_fee_mad,route_distance_m,route_duration_s,created_at,passenger_id&driver_id=eq.${user.id}&order=created_at.desc&limit=30`);
       if (!assignedResult.ok) throw new Error("Could not load assigned trips.");
+      const rentalResult = await db(`rental_requests?select=id,city,notes,status,created_at,partner_id,partner_confirmed_at,commission_free_until&driver_id=eq.${user.id}&order=created_at.desc&limit=10`);
+      if (!rentalResult.ok) throw new Error("Could not load rental request status.");
       let openTrips: Json[] = [];
       if (driverProfile?.verification_status === "approved") {
         const vehicles = await db(`vehicles?select=id&driver_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
@@ -307,7 +340,7 @@ Deno.serve(async (req: Request) => {
           }
         }
       }
-      return json({ driverProfile, presence, assignedTrips: await assignedResult.json(), openTrips }, 200, origin);
+      return json({ driverProfile, presence, assignedTrips: await assignedResult.json(), openTrips, rentalRequests: await rentalResult.json() }, 200, origin);
     }
 
     if (action === "update-driver-location") {
@@ -452,18 +485,25 @@ Deno.serve(async (req: Request) => {
       const requestId = str(body.requestId, 64);
       const partnerId = str(body.partnerId, 64);
       if (!requestId || !/^[0-9a-f-]{36}$/i.test(requestId) || !partnerId || !/^[0-9a-f-]{36}$/i.test(partnerId)) return fail("Valid rental request and partner IDs are required.", 422, origin);
-      const partner = await db(`partner_profiles?select=id& id=eq.${partnerId}&verification_status=eq.approved&limit=1`.replace("& id=", "&id="));
-      if (!partner.ok || (await partner.json()).length === 0) return fail("An approved rental partner is required.", 422, origin);
-      const until = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-      const r = await db(`rental_requests?id=eq.${requestId}&status=eq.pending&select=id,driver_id,partner_id,status,commission_free_until,terms_version,terms_accepted_at`, {
+      const partner = await db(`partner_profiles?select=id,city&id=eq.${partnerId}&verification_status=eq.approved&limit=1`);
+      if (!partner.ok) throw new Error("Could not verify rental partner.");
+      const partnerRow = (await partner.json())[0];
+      if (!partnerRow) return fail("An approved rental partner is required.", 422, origin);
+      const requestResult = await db(`rental_requests?select=id,city,terms_accepted_at&id=eq.${requestId}&status=eq.pending&limit=1`);
+      if (!requestResult.ok) throw new Error("Could not verify rental request.");
+      const requestRow = (await requestResult.json())[0];
+      if (!requestRow) return fail("Rental request is no longer pending.", 409, origin);
+      if (!requestRow.terms_accepted_at) return fail("The driver must accept rental terms before matching.", 409, origin);
+      if (requestRow.city !== "Other" && partnerRow.city !== "Other" && requestRow.city !== partnerRow.city) return fail("Choose an approved partner in the same city.", 422, origin);
+      const r = await db(`rental_requests?id=eq.${requestId}&status=eq.pending&select=id,driver_id,partner_id,status,commission_free_until,terms_version,terms_accepted_at,partner_confirmed_at`, {
         method: "PATCH",
         headers: { Prefer: "return=representation" },
-        body: JSON.stringify({ partner_id: partnerId, status: "matched", commission_free_until: until, terms_version: "rental-v1" }),
+        body: JSON.stringify({ partner_id: partnerId, status: "matched", commission_free_until: null, partner_confirmed_at: null, terms_version: "rental-v1" }),
       });
       if (!r.ok) throw new Error("Rental request could not be matched.");
       const rows = await r.json();
       if (!rows.length) return fail("Rental request is no longer pending.", 409, origin);
-      return json({ request: rows[0], commissionFreeUntil: until }, 200, origin);
+      return json({ request: rows[0] }, 200, origin);
     }
 
     if (action === "admin-create-fare-rule") {
@@ -511,7 +551,7 @@ Deno.serve(async (req: Request) => {
       if (!candidate) return fail("This trip is no longer available.", 409, origin);
       const pickupDistance = haversineKm(Number(presenceRow.latitude), Number(presenceRow.longitude), Number(candidate.pickup_latitude), Number(candidate.pickup_longitude));
       if (pickupDistance > MATCH_RADIUS_KM) return fail("This pickup is outside your current matching radius.", 403, origin);
-      const rental = await db(`rental_requests?select=id&driver_id=eq.${user.id}&status=eq.matched&commission_free_until=gt.${new Date().toISOString()}&limit=1`);
+      const rental = await db(`rental_requests?select=id&driver_id=eq.${user.id}&status=eq.approved&commission_free_until=gt.${new Date().toISOString()}&limit=1`);
       const commissionFree = rental.ok && (await rental.json()).length > 0;
       const r = await db(`trips?id=eq.${tripId}&status=eq.requested&driver_id=is.null&select=id,status,passenger_id,driver_id,quoted_fare_mad,platform_fee_mad`, {
         method: "PATCH",
