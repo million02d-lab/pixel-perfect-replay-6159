@@ -52,6 +52,98 @@ export type Database = {
           },
         ]
       }
+      driver_documents: {
+        Row: {
+          created_at: string
+          doc_type: string
+          driver_id: string
+          file_size_bytes: number
+          id: string
+          mime_type: string
+          original_filename: string
+          review_status: Database["public"]["Enums"]["review_status"]
+          reviewed_at: string | null
+          reviewed_by: string | null
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          doc_type: string
+          driver_id: string
+          file_size_bytes: number
+          id?: string
+          mime_type: string
+          original_filename: string
+          review_status?: Database["public"]["Enums"]["review_status"]
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          doc_type?: string
+          driver_id?: string
+          file_size_bytes?: number
+          id?: string
+          mime_type?: string
+          original_filename?: string
+          review_status?: Database["public"]["Enums"]["review_status"]
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_documents_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "driver_profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "driver_documents_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      driver_presence: {
+        Row: {
+          last_seen_at: string | null
+          latitude: number | null
+          longitude: number | null
+          online: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          last_seen_at?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          online?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          last_seen_at?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          online?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_presence_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "driver_profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       driver_profiles: {
         Row: {
           created_at: string
@@ -261,10 +353,12 @@ export type Database = {
         Row: {
           city: string
           commission_free_until: string | null
+          contact_sharing_accepted_at: string | null
           created_at: string
           driver_id: string
           id: string
           notes: string | null
+          partner_confirmed_at: string | null
           partner_id: string | null
           status: Database["public"]["Enums"]["rental_request_status"]
           terms_accepted_at: string | null
@@ -274,10 +368,12 @@ export type Database = {
         Insert: {
           city: string
           commission_free_until?: string | null
+          contact_sharing_accepted_at?: string | null
           created_at?: string
           driver_id: string
           id?: string
           notes?: string | null
+          partner_confirmed_at?: string | null
           partner_id?: string | null
           status?: Database["public"]["Enums"]["rental_request_status"]
           terms_accepted_at?: string | null
@@ -287,10 +383,12 @@ export type Database = {
         Update: {
           city?: string
           commission_free_until?: string | null
+          contact_sharing_accepted_at?: string | null
           created_at?: string
           driver_id?: string
           id?: string
           notes?: string | null
+          partner_confirmed_at?: string | null
           partner_id?: string | null
           status?: Database["public"]["Enums"]["rental_request_status"]
           terms_accepted_at?: string | null
