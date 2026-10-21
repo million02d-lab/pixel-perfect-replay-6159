@@ -1,17 +1,26 @@
 # Ozannif production-readiness plan
 
-## Current verified state
+## Current verified state (updated 2026-10-21)
 
-This repository is a React 19 + TypeScript + TanStack Start frontend. It includes Arabic/French/English dictionaries, a homepage, route/vehicle selection, illustrative fare calculations, an SVG placeholder map, and form/dashboard shells.
+The connected Supabase project is confirmed and has the core application schema with RLS enabled. The ozannif-api Edge Function is deployed (version tracked in Supabase; source is committed at supabase/functions/ozannif-api/index.ts). Core auth/profile, server-side geocoding and quote, trip persistence/lifecycle, driver presence, loyalty ledger, partner/vehicle applications, rental matching, admin review/fare-rule operations, and contact persistence are implemented in the current branch.
 
-The current application must not be represented as a live ride-hailing service yet:
-- `src/lib/fare.ts` computes a deterministic pseudo-distance from input strings and uses hard-coded illustrative rates.
-- `src/features/booking/MapPanel.tsx` draws an SVG placeholder rather than a geographic map.
-- `src/routes/book.tsx` only changes local React state when the user clicks the request button; no trip is persisted or dispatched.
-- `src/features/forms/DemoForms.tsx` simulates submissions with a timer; it does not create accounts, send email, or persist applications.
-- `src/routes/admin.tsx` and dashboard components render empty/demo data.
-- `.env.example` contains Supabase and map-provider placeholders, but configuration placeholders do not prove that a project is connected.
-- The README states that a backend/security audit is not complete.
+The React + TypeScript + TanStack Start frontend now includes:
+- Supabase Auth signup/sign-in, with session refresh and server-side profile provisioning.
+- Contact form persistence; optional support email when verified Resend settings are configured.
+- Driver profile, vehicle application, partner application, and driver-without-car rental request forms.
+- Passenger trip history and loyalty balance, driver availability/trip lifecycle, and an admin console with review queues, fare-rule creation and rental matching.
+- A server-side quote flow that geocodes locations within the configured Rabat–Salé area, obtains directions, calculates fuel cost from fare-rule fuel price and vehicle consumption, and persists trip requests with an idempotency key.
+- An OpenStreetMap view for resolved trip locations and tests/CI for lint, unit tests, typecheck and build.
+
+The project is **not ready for public production launch**:
+- Mapbox or Google Maps secrets must be configured in Supabase Edge Function secrets; live geocoding/directions fail closed until then.
+- No production fare rules are active. An authorized admin must validate prices and activate a rule including fuel price and litres per 100 km.
+- A trusted admin must be provisioned through the Supabase SQL Editor; see docs/admin-bootstrap.md.
+- Support email requires a Resend API key, support inbox and verified sender; otherwise contact messages are saved in the database only.
+- Contact throttling is best-effort per function instance and requires durable rate limiting/CAPTCHA before public promotion.
+- Realtime notifications/live GPS, payment processing, receipts, document uploads, reward redemption, cancellation reasons, ratings, full admin audit tooling, Moroccan legal/privacy review and full end-to-end testing remain incomplete.
+- The existing home page still includes truthful demo notices; do not remove them until the complete customer journey is verified in the deployed environment.
+- The app client uses a public Supabase publishable key only. Never put a service-role key in the browser or repository.
 
 ## Delivery rule
 
@@ -27,10 +36,10 @@ Work in small, reviewable pull requests. Do not remove truthful availability not
 
 ## Phase 1 — Backend and identity
 
-Choose and configure exactly one primary backend after inspecting the actual project settings. Supabase is the repository's current documented proposal, not a confirmed live integration.
+Supabase is confirmed as the primary backend. Keep privileged writes in Edge Functions and enforce RLS/ownership on all browser-accessible tables.
 
 Required capabilities:
-- Passenger and driver identity, verified email/phone, session handling, password reset, sign-out.
+- Passenger and driver identity, email confirmation/session handling and sign-out. Password reset and phone verification still need implementation.
 - A server-controlled role model for passenger, driver, operations/admin. Never trust a role supplied by client-side metadata.
 - Driver profile, vehicle details, document review status, and approval workflow.
 - Row-level access control for every exposed data table; ownership checks for every read/write; deny by default.
@@ -51,8 +60,7 @@ Proposed entities: profiles, user_roles, driver_profiles, vehicles, trips, trip_
 
 ## Phase 3 — Trip lifecycle and dispatch
 
-Implement a server-validated state machine, for example:
-requested → matched → accepted → driver_arriving → in_progress → completed; allow cancellation only under defined rules.
+Initial server-validated lifecycle is implemented: requested → matched → driver_arriving → in_progress → completed, with cancellation checks. Expand it with cancellation reasons, dispatch notifications and realtime updates before launch.
 
 - Persist every transition and its actor/timestamp.
 - Prevent double acceptance and duplicate requests using database constraints/idempotency.
@@ -63,7 +71,7 @@ requested → matched → accepted → driver_arriving → in_progress → compl
 
 ## Phase 4 — Rental-driver onboarding
 
-Replace the generic rental-partner enquiry journey with a dedicated driver-with-rented-car journey:
+The dedicated driver-without-car journey is implemented in the UI and Edge Function. Remaining work: partner confirmation workflow, rental contract/document storage, and operational testing.
 - Explain eligibility and required documents.
 - Collect applicant contact details and preferred city securely.
 - Store applications with explicit pending/approved/rejected/contacted status.
