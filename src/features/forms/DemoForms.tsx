@@ -175,3 +175,40 @@ export function PartnerForm() {
     </form>
   );
 }
+
+ 
+export function RentalRequestForm() {
+  const { t, lang } = useI18n();
+  const id = useId();
+  const [city, setCity] = useState("Rabat");
+  const [notes, setNotes] = useState("");
+  const [accepted, setAccepted] = useState(false);
+  const [status, setStatus] = useState<Status>("idle");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const messages = {
+    ar: { title: "باغي تخدم بلا سيارتك؟", sub: "قدّم طلب باش نربطوك بشريك كراء معتمد. الطلب ما كيعنيش أن السيارة تحجزات.", terms: "كنوافق أن الطلب يبقى خاضعاً للتحقق وموافقة الشريك. من بعد مطابقة الطلب مع شريك معتمد، كتبدأ فترة 7 أيام بلا عمولة المنصة. كراء السيارة خاصو يتأكد بشكل منفصل مع الشريك.", submit: "طلب مطابقة مع شريك", ok: "تسجل طلب الكراء وهو قيد المراجعة.", failed: "تعذر إرسال الطلب." },
+    fr: { title: "Vous n'avez pas de voiture ?", sub: "Demandez une mise en relation avec un partenaire de location agréé. La demande ne réserve pas un véhicule.", terms: "J'accepte la vérification et la confirmation séparée du partenaire. Après mise en relation avec un partenaire agréé, une période de 7 jours sans commission plateforme commence. La location doit être confirmée séparément avec le partenaire.", submit: "Demander une mise en relation", ok: "Demande de location enregistrée, en attente de vérification.", failed: "Impossible d'envoyer la demande." },
+    en: { title: "No car of your own?", sub: "Request a match with an approved rental partner. This request does not reserve a vehicle.", terms: "I accept verification and separate confirmation by the partner. After matching with an approved partner, a 7-day platform-commission-free period begins. The vehicle rental must be confirmed separately with the partner.", submit: "Request rental match", ok: "Rental request saved and awaiting review.", failed: "The request could not be submitted." },
+  }[lang];
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(""); setSuccess("");
+    if (!accepted) { setError(messages.terms); setStatus("error"); return; }
+    setStatus("loading");
+    try {
+      await invokeOzannif({ action: "rental-request", city: city === "Salé" ? "Sale" : city === "Témara" ? "Temara" : city, notes: notes.trim() || null, termsAccepted: accepted });
+      setSuccess(messages.ok); setStatus("success"); setNotes(""); setAccepted(false);
+    } catch (e) { setError(e instanceof Error ? e.message : messages.failed); setStatus("error"); }
+  };
+  return (
+    <form onSubmit={submit} className="grid gap-4 rounded-2xl border bg-card p-6 shadow-soft">
+      <div><h2 className="text-xl font-bold text-primary">{messages.title}</h2><p className="mt-1 text-sm text-muted-foreground">{messages.sub}</p></div>
+      <Field id={`${id}city`} label={t.partner.city}><select id={`${id}city`} className={inputCls} value={city} onChange={(e) => setCity(e.target.value)}><option>Rabat</option><option>Salé</option><option>Témara</option></select></Field>
+      <Field id={`${id}notes`} label={t.contact.message}><textarea id={`${id}notes`} rows={3} maxLength={1000} className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={lang === "ar" ? "ملاحظات اختيارية حول نوع السيارة أو مدة الكراء" : lang === "fr" ? "Type de véhicule ou durée souhaitée (facultatif)" : "Preferred vehicle or rental duration (optional)"} /></Field>
+      <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} /><span>{messages.terms}</span></label>
+      {status === "success" && <p role="status" className="rounded-lg bg-success/10 p-3 text-sm">{success}</p>}
+      {status === "error" && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+      <Button type="submit" disabled={status === "loading"}>{status === "loading" ? <Loader2 className="animate-spin" /> : messages.submit}</Button>
+    </form>
+  );
+}
