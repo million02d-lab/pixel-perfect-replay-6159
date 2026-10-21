@@ -259,7 +259,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "admin-overview") {
       if (!user || !(await isAdmin(user.id))) return fail("Admin access required.", 403, origin);
-      const [passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages, driversQueue, partnersQueue, vehiclesQueue, messagesQueue] = await Promise.all([
+      const [passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages, driversQueue, partnersQueue, vehiclesQueue, messagesQueue, rentalsQueue, approvedPartners] = await Promise.all([
         exactCount("profiles"),
         exactCount("trips"),
         exactCount("driver_profiles", "&verification_status=eq.pending"),
@@ -270,8 +270,10 @@ Deno.serve(async (req: Request) => {
         db("partner_profiles?select=id,business_name,city,contact_email,fleet_size,verification_status,created_at&verification_status=eq.pending&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
         db("vehicles?select=id,driver_id,make,model,plate_number,vehicle_class,verification_status,created_at&verification_status=eq.pending&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
         db("contact_messages?select=id,name,email,message,status,created_at&status=eq.new&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
+        db("rental_requests?select=id,driver_id,city,notes,status,created_at,terms_accepted_at&status=eq.pending&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
+        db("partner_profiles?select=id,business_name,city&verification_status=eq.approved&order=business_name.asc&limit=100").then(async r => r.ok ? await r.json() : []),
       ]);
-      return json({ overview: { passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages }, queues: { drivers: driversQueue, partners: partnersQueue, vehicles: vehiclesQueue, messages: messagesQueue } }, 200, origin);
+      return json({ overview: { passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages }, queues: { drivers: driversQueue, partners: partnersQueue, vehicles: vehiclesQueue, messages: messagesQueue, rentals: rentalsQueue, approvedPartners } }, 200, origin);
     }
 
     if (action === "admin-review") {
@@ -296,6 +298,25 @@ Deno.serve(async (req: Request) => {
       const rows = await r.json();
       if (!rows.length) return fail("Review target not found.", 404, origin);
       return json({ reviewed: rows[0] }, 200, origin);
+    }
+
+    if (action === "admin-match-rental") {
+      if (!user || !(await isAdmin(user.id))) return fail("Admin access required.", 403, origin);
+      const requestId = str(body.requestId, 64);
+      const partnerId = str(body.partnerId, 64);
+      if (!requestId || !/^[0-9a-f-]{36}$/i.test(requestId) || !partnerId || !/^[0-9a-f-]{36}$/i.test(partnerId)) return fail("Valid rental request and partner IDs are required.", 422, origin);
+      const partner = await db(`partner_profiles?select=id& id=eq.${partnerId}&verification_status=eq.approved&limit=1`.replace("& id=", "&id="));
+      if (!partner.ok || (await partner.json()).length === 0) return fail("An approved rental partner is required.", 422, origin);
+      const until = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const r = await db(`rental_requests?id=eq.${requestId}&status=eq.pending&select=id,driver_id,partner_id,status,commission_free_until,terms_version,terms_accepted_at`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ partner_id: partnerId, status: "matched", commission_free_until: until, terms_version: "rental-v1" }),
+      });
+      if (!r.ok) throw new Error("Rental request could not be matched.");
+      const rows = await r.json();
+      if (!rows.length) return fail("Rental request is no longer pending.", 409, origin);
+      return json({ request: rows[0], commissionFreeUntil: until }, 200, origin);
     }
 
     if (action === "admin-create-fare-rule") {
@@ -335,15 +356,17 @@ Deno.serve(async (req: Request) => {
       if (!vehicles.ok || (await vehicles.json()).length === 0) return fail("An approved vehicle is required before accepting trips.", 403, origin);
       const presence = await db(`driver_presence?select=online&user_id=eq.${user.id}&limit=1`);
       if (!presence.ok || (await presence.json())[0]?.online !== true) return fail("Go online before accepting trips.", 409, origin);
+      const rental = await db(`rental_requests?select=id&driver_id=eq.${user.id}&status=eq.matched&commission_free_until=gt.${new Date().toISOString()}&limit=1`);
+      const commissionFree = rental.ok && (await rental.json()).length > 0;
       const r = await db(`trips?id=eq.${tripId}&status=eq.requested&driver_id=is.null&select=id,status,passenger_id,driver_id,quoted_fare_mad,platform_fee_mad`, {
         method: "PATCH",
         headers: { Prefer: "return=representation" },
-        body: JSON.stringify({ driver_id: user.id, status: "matched", matched_at: new Date().toISOString() }),
+        body: JSON.stringify({ driver_id: user.id, status: "matched", matched_at: new Date().toISOString(), ...(commissionFree ? { platform_fee_mad: 0 } : {}) }),
       });
       if (!r.ok) throw new Error("Trip acceptance failed.");
       const rows = await r.json();
       if (!rows.length) return fail("This trip is no longer available.", 409, origin);
-      await appendTripEvent(tripId, user.id, "driver_accepted");
+      await appendTripEvent(tripId, user.id, "driver_accepted", { commissionFree });
       return json({ trip: rows[0] }, 200, origin);
     }
 
