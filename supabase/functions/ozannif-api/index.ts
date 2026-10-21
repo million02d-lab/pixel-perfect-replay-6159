@@ -203,17 +203,75 @@ Deno.serve(async (req: Request) => {
       return json({ trip: rows[0], duplicate: false }, 201, origin);
     }
 
+    if (action === "my-trips") {
+      if (!user) return fail("Sign in is required.", 401, origin);
+      const scope = body.scope === "driver" ? "driver" : "passenger";
+      const column = scope === "driver" ? "driver_id" : "passenger_id";
+      const r = await db(`trips?select=id,status,pickup_label,destination_label,vehicle_class,quoted_fare_mad,platform_fee_mad,route_distance_m,route_duration_s,created_at,matched_at,started_at,completed_at,cancelled_at,driver_id&${column}=eq.${user.id}&order=created_at.desc&limit=30`);
+      if (!r.ok) throw new Error("Could not load your trips.");
+      return json({ trips: await r.json() }, 200, origin);
+    }
+
+    if (action === "my-loyalty") {
+      if (!user) return fail("Sign in is required.", 401, origin);
+      const r = await db(`loyalty_ledger?select=id,trip_id,points_delta,reason,created_at&passenger_id=eq.${user.id}&order=created_at.desc&limit=100`);
+      if (!r.ok) throw new Error("Could not load loyalty history.");
+      const entries = await r.json();
+      return json({ points: entries.reduce((sum: number, row: Json) => sum + Number(row.points_delta), 0), entries }, 200, origin);
+    }
+
+    if (action === "driver-dashboard") {
+      if (!user) return fail("Sign in is required.", 401, origin);
+      const driver = await db(`driver_profiles?select=verification_status&user_id=eq.${user.id}&limit=1`);
+      if (!driver.ok) throw new Error("Could not load driver profile.");
+      const driverProfile = (await driver.json())[0] ?? null;
+      const presenceResult = await db(`driver_presence?select=online,last_seen_at,updated_at&user_id=eq.${user.id}&limit=1`);
+      const presence = presenceResult.ok ? (await presenceResult.json())[0] ?? { online: false } : { online: false };
+      const assignedResult = await db(`trips?select=id,status,pickup_label,destination_label,vehicle_class,quoted_fare_mad,platform_fee_mad,route_distance_m,route_duration_s,created_at,passenger_id&driver_id=eq.${user.id}&order=created_at.desc&limit=30`);
+      if (!assignedResult.ok) throw new Error("Could not load assigned trips.");
+      let openTrips: Json[] = [];
+      if (driverProfile?.verification_status === "approved") {
+        const vehicles = await db(`vehicles?select=id&driver_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
+        if (vehicles.ok && (await vehicles.json()).length > 0 && presence.online) {
+          const open = await db("trips?select=id,status,pickup_label,destination_label,vehicle_class,quoted_fare_mad,route_distance_m,route_duration_s,requested_at&status=eq.requested&driver_id=is.null&order=requested_at.asc&limit=20");
+          if (open.ok) openTrips = await open.json();
+        }
+      }
+      return json({ driverProfile, presence, assignedTrips: await assignedResult.json(), openTrips }, 200, origin);
+    }
+
+    if (action === "set-driver-availability") {
+      if (!user) return fail("Sign in is required.", 401, origin);
+      if (typeof body.online !== "boolean") return fail("A valid online state is required.", 422, origin);
+      if (body.online) {
+        const driver = await db(`driver_profiles?select=user_id&user_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
+        if (!driver.ok || (await driver.json()).length === 0) return fail("Your driver profile must be approved before going online.", 403, origin);
+        const vehicles = await db(`vehicles?select=id&driver_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
+        if (!vehicles.ok || (await vehicles.json()).length === 0) return fail("You need an approved vehicle before going online.", 403, origin);
+      }
+      const r = await db("driver_presence?on_conflict=user_id&select=user_id,online,last_seen_at,updated_at", {
+        method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+        body: JSON.stringify({ user_id: user.id, online: body.online, last_seen_at: body.online ? new Date().toISOString() : null }),
+      });
+      if (!r.ok) throw new Error("Availability could not be saved.");
+      return json({ presence: (await r.json())[0] }, 200, origin);
+    }
+
     if (action === "admin-overview") {
       if (!user || !(await isAdmin(user.id))) return fail("Admin access required.", 403, origin);
-      const [passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages] = await Promise.all([
+      const [passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages, driversQueue, partnersQueue, vehiclesQueue, messagesQueue] = await Promise.all([
         exactCount("profiles"),
         exactCount("trips"),
         exactCount("driver_profiles", "&verification_status=eq.pending"),
         exactCount("partner_profiles", "&verification_status=eq.pending"),
         exactCount("vehicles", "&verification_status=eq.pending"),
         exactCount("contact_messages", "&status=eq.new"),
+        db("driver_profiles?select=user_id,verification_status,created_at,profiles(full_name,phone)&verification_status=eq.pending&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
+        db("partner_profiles?select=id,business_name,city,contact_email,fleet_size,verification_status,created_at&verification_status=eq.pending&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
+        db("vehicles?select=id,driver_id,make,model,plate_number,vehicle_class,verification_status,created_at&verification_status=eq.pending&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
+        db("contact_messages?select=id,name,email,message,status,created_at&status=eq.new&order=created_at.asc&limit=20").then(async r => r.ok ? await r.json() : []),
       ]);
-      return json({ overview: { passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages } }, 200, origin);
+      return json({ overview: { passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages }, queues: { drivers: driversQueue, partners: partnersQueue, vehicles: vehiclesQueue, messages: messagesQueue } }, 200, origin);
     }
 
     if (action === "admin-review") {
@@ -275,6 +333,8 @@ Deno.serve(async (req: Request) => {
       if (!driver.ok || (await driver.json()).length === 0) return fail("Only approved drivers can accept trips.", 403, origin);
       const vehicles = await db(`vehicles?select=id&driver_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
       if (!vehicles.ok || (await vehicles.json()).length === 0) return fail("An approved vehicle is required before accepting trips.", 403, origin);
+      const presence = await db(`driver_presence?select=online&user_id=eq.${user.id}&limit=1`);
+      if (!presence.ok || (await presence.json())[0]?.online !== true) return fail("Go online before accepting trips.", 409, origin);
       const r = await db(`trips?id=eq.${tripId}&status=eq.requested&driver_id=is.null&select=id,status,passenger_id,driver_id,quoted_fare_mad,platform_fee_mad`, {
         method: "PATCH",
         headers: { Prefer: "return=representation" },
