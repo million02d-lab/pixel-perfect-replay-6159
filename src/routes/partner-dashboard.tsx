@@ -51,12 +51,36 @@ function Page() {
             <p className="mt-2 text-sm">{data.partner.verification_status === "approved" ? (lang === "ar" ? "الشريك معتمد" : lang === "fr" ? "Partenaire agréé" : "Approved partner") : labels.pending}</p>
           </Panel>
           <Panel title={labels.requests} wide>
-            {data.partner.verification_status !== "approved" ? <p className="text-sm text-muted-foreground">{labels.pending}</p> : data.requests.length ? <div className="grid gap-3">{data.requests.map((item) => (
-              <article key={item.id} className="grid gap-3 rounded-lg border p-4">
-                <div><p className="font-semibold">{item.city} · {item.driver_id}</p><p className="mt-1 text-sm text-muted-foreground">{item.notes || "—"}</p><p className="mt-1 text-xs text-muted-foreground">{item.terms_accepted_at ? new Date(item.terms_accepted_at).toLocaleString(lang) : ""}</p></div>
-                {item.status === "matched" ? <><p className="text-xs text-muted-foreground">{labels.terms}</p><Button onClick={() => void confirm(item.id)} disabled={busy === item.id}>{busy === item.id ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : null}{labels.confirm}</Button></> : <p role="status" className="rounded-lg bg-success/10 p-3 text-sm">{labels.started} {item.commission_free_until ? new Date(item.commission_free_until).toLocaleString(lang) : "—"}</p>}
-              </article>
-            ))}</div> : <Empty text={labels.none} />
+            {data.partner.verification_status !== "approved" ? (
+              <p className="text-sm text-muted-foreground">{labels.pending}</p>
+            ) : data.requests.length > 0 ? (
+              <div className="grid gap-3">
+                {data.requests.map((item) => (
+                  <article key={item.id} className="grid gap-3 rounded-lg border p-4">
+                    <div>
+                      <p className="font-semibold">{item.city} · {item.driver_id}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{item.notes || "—"}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{item.terms_accepted_at ? new Date(item.terms_accepted_at).toLocaleString(lang) : ""}</p>
+                    </div>
+                    {item.status === "matched" ? (
+                      <>
+                        <p className="text-xs text-muted-foreground">{labels.terms}</p>
+                        <Button onClick={() => void confirm(item.id)} disabled={busy === item.id}>
+                          {busy === item.id ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : null}
+                          {labels.confirm}
+                        </Button>
+                      </>
+                    ) : (
+                      <p role="status" className="rounded-lg bg-success/10 p-3 text-sm">
+                        {labels.started} {item.commission_free_until ? new Date(item.commission_free_until).toLocaleString(lang) : "—"}
+                      </p>
+                    )}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <Empty text={labels.none} />
+            )}
           </Panel>
         </>
       )}
