@@ -89,6 +89,24 @@ async function quote(aLat: number, aLng: number, bLat: number, bLng: number, veh
 }
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+async function isAdmin(userId: string) {
+  const r = await db(`profiles?select=role&id=eq.${userId}&limit=1`);
+  if (!r.ok) return false;
+  const rows = await r.json();
+  return rows[0]?.role === "admin";
+}
+async function appendTripEvent(tripId: string, actorId: string, eventType: string, details: Json = {}) {
+  const r = await db("trip_events", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ trip_id: tripId, actor_id: actorId, event_type: eventType, details }) });
+  if (!r.ok) throw new Error("Trip status changed, but the audit event could not be saved.");
+}
+async function exactCount(table: string, filters = "") {
+  const r = await db(`${table}?select=id${filters}`, { method: "HEAD", headers: { Prefer: "count=exact" } });
+  if (!r.ok) throw new Error("Could not load the admin overview.");
+  const range = r.headers.get("content-range");
+  const count = range?.split("/")[1];
+  return count && count !== "*" ? Number(count) : 0;
+}
+
 Deno.serve(async (req: Request) => {
   const origin = originFor(req);
   if (origin === null) return fail("Origin not allowed.", 403, "null");
@@ -181,7 +199,138 @@ Deno.serve(async (req: Request) => {
       const r = await db("trips?select=id,status,quoted_fare_mad,platform_fee_mad,route_distance_m,route_duration_s,created_at", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(trip) });
       if (!r.ok) throw new Error("Booking could not be saved. Please try again.");
       const rows = await r.json();
+      await appendTripEvent(rows[0].id, user.id, "trip_requested", { vehicleClass: vehicle });
       return json({ trip: rows[0], duplicate: false }, 201, origin);
+    }
+
+    if (action === "admin-overview") {
+      if (!user || !(await isAdmin(user.id))) return fail("Admin access required.", 403, origin);
+      const [passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages] = await Promise.all([
+        exactCount("profiles"),
+        exactCount("trips"),
+        exactCount("driver_profiles", "&verification_status=eq.pending"),
+        exactCount("partner_profiles", "&verification_status=eq.pending"),
+        exactCount("vehicles", "&verification_status=eq.pending"),
+        exactCount("contact_messages", "&status=eq.new"),
+      ]);
+      return json({ overview: { passengers, trips, pendingDrivers, pendingPartners, pendingVehicles, newMessages } }, 200, origin);
+    }
+
+    if (action === "admin-review") {
+      if (!user || !(await isAdmin(user.id))) return fail("Admin access required.", 403, origin);
+      const targetType = body.targetType;
+      const targetId = str(body.targetId, 64);
+      const reviewStatus = body.status;
+      if (!targetId || !/^[0-9a-f-]{36}$/i.test(targetId) || !["approved", "rejected", "suspended"].includes(String(reviewStatus))) return fail("Valid review target and status are required.", 422, origin);
+      const targets: Record<string, { table: string; key: string }> = {
+        driver: { table: "driver_profiles", key: "user_id" },
+        vehicle: { table: "vehicles", key: "id" },
+        partner: { table: "partner_profiles", key: "id" },
+      };
+      const target = typeof targetType === "string" ? targets[targetType] : undefined;
+      if (!target) return fail("Unknown review target.", 422, origin);
+      const r = await db(`${target.table}?${target.key}=eq.${targetId}&select=*`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ verification_status: reviewStatus, reviewed_at: new Date().toISOString() }),
+      });
+      if (!r.ok) throw new Error("Review decision could not be saved.");
+      const rows = await r.json();
+      if (!rows.length) return fail("Review target not found.", 404, origin);
+      return json({ reviewed: rows[0] }, 200, origin);
+    }
+
+    if (action === "admin-create-fare-rule") {
+      if (!user || !(await isAdmin(user.id))) return fail("Admin access required.", 403, origin);
+      const vehicle = typeof body.vehicleClass === "string" && VEHICLES.has(body.vehicleClass) ? body.vehicleClass : null;
+      const base = num(body.baseFare, 0, 100000);
+      const perKm = num(body.perKm, 0, 100000);
+      const perMinute = num(body.perMinute, 0, 100000);
+      const minimum = num(body.minimumFare, 0, 100000);
+      const fee = num(body.platformFee, 0, 100000);
+      const fuelPrice = body.fuelPrice == null ? null : num(body.fuelPrice, 0, 1000);
+      const consumption = body.litersPer100Km == null ? null : num(body.litersPer100Km, 0, 100);
+      const active = body.active === true;
+      if (!vehicle || base === null || perKm === null || perMinute === null || minimum === null || fee === null || (body.fuelPrice != null && fuelPrice === null) || (body.litersPer100Km != null && consumption === null) || fee > minimum) {
+        return fail("Invalid fare rule. Minimum fare must cover the platform fee.", 422, origin);
+      }
+      if (active) {
+        const deactivate = await db(`fare_rules?vehicle_class=eq.${vehicle}&active=eq.true`, { method: "PATCH", body: JSON.stringify({ active: false }) });
+        if (!deactivate.ok) throw new Error("Could not deactivate the previous fare rule.");
+      }
+      const r = await db("fare_rules?select=*", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ vehicle_class: vehicle, base_fare_mad: base, per_km_mad: perKm, per_minute_mad: perMinute, minimum_fare_mad: minimum, platform_fee_mad: fee, fuel_price_mad_per_l: fuelPrice, assumed_l_per_100km: consumption, active, valid_from: new Date().toISOString() }),
+      });
+      if (!r.ok) throw new Error("Fare rule could not be saved.");
+      return json({ fareRule: (await r.json())[0] }, 201, origin);
+    }
+
+    if (action === "accept-trip") {
+      if (!user) return fail("Sign in is required.", 401, origin);
+      const tripId = str(body.tripId, 64);
+      if (!tripId || !/^[0-9a-f-]{36}$/i.test(tripId)) return fail("A valid trip ID is required.", 422, origin);
+      const driver = await db(`driver_profiles?select=user_id&user_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
+      if (!driver.ok || (await driver.json()).length === 0) return fail("Only approved drivers can accept trips.", 403, origin);
+      const vehicles = await db(`vehicles?select=id&driver_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
+      if (!vehicles.ok || (await vehicles.json()).length === 0) return fail("An approved vehicle is required before accepting trips.", 403, origin);
+      const r = await db(`trips?id=eq.${tripId}&status=eq.requested&driver_id=is.null&select=id,status,passenger_id,driver_id,quoted_fare_mad,platform_fee_mad`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ driver_id: user.id, status: "matched", matched_at: new Date().toISOString() }),
+      });
+      if (!r.ok) throw new Error("Trip acceptance failed.");
+      const rows = await r.json();
+      if (!rows.length) return fail("This trip is no longer available.", 409, origin);
+      await appendTripEvent(tripId, user.id, "driver_accepted");
+      return json({ trip: rows[0] }, 200, origin);
+    }
+
+    if (action === "transition-trip") {
+      if (!user) return fail("Sign in is required.", 401, origin);
+      const tripId = str(body.tripId, 64);
+      const nextStatus = body.status;
+      if (!tripId || !/^[0-9a-f-]{36}$/i.test(tripId) || !["driver_arriving", "in_progress", "completed", "cancelled"].includes(String(nextStatus))) return fail("Valid trip and status are required.", 422, origin);
+      const currentResult = await db(`trips?select=id,passenger_id,driver_id,status,quoted_fare_mad,platform_fee_mad,matched_at& id=eq.${tripId}&limit=1`.replace("& id=", "&id="));
+      if (!currentResult.ok) throw new Error("Could not load the trip.");
+      const current = (await currentResult.json())[0];
+      if (!current) return fail("Trip not found.", 404, origin);
+      const isPassenger = current.passenger_id === user.id;
+      const isDriver = current.driver_id === user.id;
+      if (nextStatus === "completed" && current.status === "completed" && isDriver) {
+        const ledger = await db(`loyalty_ledger?select=id&trip_id=eq.${tripId}&reason=eq.completed_trip&limit=1`);
+        if (ledger.ok && (await ledger.json()).length === 0) {
+          await db("loyalty_ledger", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify({ passenger_id: current.passenger_id, trip_id: tripId, points_delta: 1, reason: "completed_trip" }) });
+        }
+        return json({ trip: current, alreadyCompleted: true }, 200, origin);
+      }
+      const transitions: Record<string, string[]> = { requested: ["cancelled"], matched: ["driver_arriving", "cancelled"], driver_arriving: ["in_progress", "cancelled"], in_progress: ["completed"] };
+      if (!(transitions[current.status] ?? []).includes(String(nextStatus))) return fail("This trip transition is not allowed.", 409, origin);
+      if (nextStatus === "cancelled") {
+        if (!((isPassenger && ["requested", "matched"].includes(current.status)) || (isDriver && ["matched", "driver_arriving"].includes(current.status)))) return fail("Only a trip participant can cancel at this stage.", 403, origin);
+      } else if (!isDriver) return fail("Only the assigned driver can update this trip.", 403, origin);
+      const patch: Json = { status: nextStatus };
+      if (nextStatus === "driver_arriving") patch.matched_at = current.matched_at ?? new Date().toISOString();
+      if (nextStatus === "in_progress") patch.started_at = new Date().toISOString();
+      if (nextStatus === "completed") patch.completed_at = new Date().toISOString();
+      if (nextStatus === "cancelled") patch.cancelled_at = new Date().toISOString();
+      const updated = await db(`trips?id=eq.${tripId}&status=eq.${current.status}&select=id,status,passenger_id,driver_id,quoted_fare_mad,platform_fee_mad,completed_at,cancelled_at`, {
+        method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify(patch),
+      });
+      if (!updated.ok) throw new Error("Trip status could not be updated.");
+      const rows = await updated.json();
+      if (!rows.length) return fail("Trip status changed elsewhere. Refresh and try again.", 409, origin);
+      await appendTripEvent(tripId, user.id, `status_${String(nextStatus)}`);
+      if (nextStatus === "completed") {
+        const reward = await db("loyalty_ledger", {
+          method: "POST",
+          headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
+          body: JSON.stringify({ passenger_id: current.passenger_id, trip_id: tripId, points_delta: 1, reason: "completed_trip" }),
+        });
+        if (!reward.ok) throw new Error("Trip completed, but the loyalty point could not be recorded; retry completion to reconcile it.");
+      }
+      return json({ trip: rows[0] }, 200, origin);
     }
 
     if (action === "partner-application") {
