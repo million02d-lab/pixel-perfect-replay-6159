@@ -294,7 +294,7 @@ Deno.serve(async (req: Request) => {
       let openTrips: Json[] = [];
       if (driverProfile?.verification_status === "approved") {
         const vehicles = await db(`vehicles?select=id&driver_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
-        if (vehicles.ok && (await vehicles.json()).length > 0 && presence.online && Number.isFinite(presence.latitude) && Number.isFinite(presence.longitude)) {
+        if (vehicles.ok && (await vehicles.json()).length > 0 && presence.online && Number.isFinite(presence.latitude) && Number.isFinite(presence.longitude) && Number.isFinite(Date.parse(String(presence.last_seen_at))) && Date.now() - Date.parse(String(presence.last_seen_at)) < 60000) {
           const open = await db("trips?select=id,status,pickup_label,destination_label,pickup_latitude,pickup_longitude,vehicle_class,quoted_fare_mad,platform_fee_mad,route_distance_m,route_duration_s,requested_at&status=eq.requested&driver_id=is.null&order=requested_at.asc&limit=100");
           if (open.ok) {
             const candidates = await open.json();
@@ -341,7 +341,7 @@ Deno.serve(async (req: Request) => {
       }
       const r = await db("driver_presence?on_conflict=user_id&select=user_id,online,last_seen_at,updated_at", {
         method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-        body: JSON.stringify({ user_id: user.id, online: body.online, last_seen_at: body.online ? new Date().toISOString() : null, latitude: body.online ? undefined : null, longitude: body.online ? undefined : null }),
+        body: JSON.stringify({ user_id: user.id, online: body.online, last_seen_at: body.online ? new Date().toISOString() : null, latitude: null, longitude: null }),
       });
       if (!r.ok) throw new Error("Availability could not be saved.");
       return json({ presence: (await r.json())[0] }, 200, origin);
@@ -504,7 +504,7 @@ Deno.serve(async (req: Request) => {
       const presence = await db(`driver_presence?select=online,latitude,longitude&user_id=eq.${user.id}&limit=1`);
       if (!presence.ok) throw new Error("Could not verify driver availability.");
       const presenceRow = (await presence.json())[0];
-      if (presenceRow?.online !== true || !Number.isFinite(presenceRow.latitude) || !Number.isFinite(presenceRow.longitude)) return fail("Go online and allow location before accepting trips.", 409, origin);
+      if (presenceRow?.online !== true || !Number.isFinite(presenceRow.latitude) || !Number.isFinite(presenceRow.longitude) || !Number.isFinite(Date.parse(String(presenceRow.last_seen_at))) || Date.now() - Date.parse(String(presenceRow.last_seen_at)) >= 60000) return fail("Go online and allow fresh location updates before accepting trips.", 409, origin);
       const candidateResult = await db(`trips?select=pickup_latitude,pickup_longitude&id=eq.${tripId}&status=eq.requested&driver_id=is.null&limit=1`);
       if (!candidateResult.ok) throw new Error("Could not verify trip availability.");
       const candidate = (await candidateResult.json())[0];
