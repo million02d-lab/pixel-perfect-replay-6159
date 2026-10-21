@@ -127,27 +127,47 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" | "driver" }) {
 }
 
 export function PartnerForm() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const id = useId();
   const [status, setStatus] = useState<Status>("idle");
-  const [v, setV] = useState({ company: "", email: "", city: "Rabat", fleet: "", licence: false });
+  const [v, setV] = useState({ company: "", email: "", city: "Rabat", fleet: "1", licence: false });
+  const [requestError, setRequestError] = useState("");
+  const success = {
+    ar: "تم حفظ طلب الشراكة. سيبقى قيد المراجعة حتى التحقق من الوثائق والتراخيص.",
+    fr: "Demande enregistrée. Elle restera en attente jusqu'à la vérification des documents et autorisations.",
+    en: "Partner application saved. It remains pending until documents and authorizations are reviewed.",
+  }[lang];
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!v.company.trim() || !EMAIL.test(v.email) || !v.licence) return setStatus("error");
-    setStatus("loading"); await fakeDelay(); setStatus("success");
+    setRequestError("");
+    if (v.company.trim().length < 2 || !EMAIL.test(v.email) || !v.licence || !Number.isInteger(Number(v.fleet)) || Number(v.fleet) < 1) {
+      setRequestError(t.contact.err);
+      setStatus("error");
+      return;
+    }
+    setStatus("loading");
+    try {
+      const city = v.city === "Salé" ? "Sale" : v.city === "Témara" ? "Temara" : v.city;
+      await invokeOzannif({ action: "partner-application", businessName: v.company.trim(), email: v.email.trim(), city, fleetSize: Number(v.fleet), licensesConfirmed: v.licence });
+      setStatus("success");
+      setV({ company: "", email: "", city: "Rabat", fleet: "1", licence: false });
+    } catch (error) {
+      setStatus("error");
+      setRequestError(error instanceof Error ? error.message : t.contact.err);
+    }
   };
   return (
     <form onSubmit={submit} noValidate className="grid gap-4 rounded-2xl border bg-card p-6 shadow-soft">
-      <Field id={`${id}c`} label={t.partner.company}><input id={`${id}c`} className={inputCls} value={v.company} onChange={(e) => setV({ ...v, company: e.target.value })} /></Field>
-      <Field id={`${id}e`} label={t.contact.email}><input id={`${id}e`} type="email" dir="ltr" className={inputCls} value={v.email} onChange={(e) => setV({ ...v, email: e.target.value })} /></Field>
+      <Field id={`${id}c`} label={t.partner.company}><input id={`${id}c`} autoComplete="organization" className={inputCls} value={v.company} onChange={(e) => setV({ ...v, company: e.target.value })} /></Field>
+      <Field id={`${id}e`} label={t.contact.email}><input id={`${id}e`} type="email" dir="ltr" autoComplete="email" className={inputCls} value={v.email} onChange={(e) => setV({ ...v, email: e.target.value })} /></Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id={`${id}t`} label={t.partner.city}>
           <select id={`${id}t`} className={inputCls} value={v.city} onChange={(e) => setV({ ...v, city: e.target.value })}><option>Rabat</option><option>Salé</option><option>Témara</option></select>
         </Field>
-        <Field id={`${id}f`} label={t.partner.fleet}><input id={`${id}f`} type="number" min={1} className={inputCls} value={v.fleet} onChange={(e) => setV({ ...v, fleet: e.target.value })} /></Field>
+        <Field id={`${id}f`} label={t.partner.fleet}><input id={`${id}f`} type="number" min={1} max={10000} step={1} className={inputCls} value={v.fleet} onChange={(e) => setV({ ...v, fleet: e.target.value })} /></Field>
       </div>
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={v.licence} onChange={(e) => setV({ ...v, licence: e.target.checked })} />{t.partner.licence}</label>
-      <StatusMsg status={status} ok={t.contact.ok} err={t.contact.err} />
+      <StatusMsg status={status} ok={success} err={requestError || t.contact.err} />
       <Button type="submit" disabled={status === "loading"}>{status === "loading" ? <Loader2 className="animate-spin" /> : t.partner.submit}</Button>
     </form>
   );
