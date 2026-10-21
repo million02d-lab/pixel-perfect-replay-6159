@@ -4,7 +4,7 @@ Ozannif is being developed for an initial Rabat and Salé service area. The fron
 
 ## Current repository status
 
-This repository currently contains a **frontend foundation** and the first Supabase database foundation. It is **not yet a production ride-hailing service**. The following flows are not yet connected end-to-end:
+This repository now contains the multilingual frontend, a Supabase schema with RLS, a deployed Edge Function, and initial account, contact, driver/vehicle application, partner application, rental matching, server quote and trip lifecycle endpoints. It is still **not ready for public production launch**. The following work remains incomplete or depends on provider/operational configuration:
 - account creation and sign-in in the UI
 - booking persistence and driver dispatch
 - real geocoding, route distance, duration and GPS tracking
@@ -26,7 +26,7 @@ The interface still contains illustrative pricing, a placeholder map and simulat
 - `src/lib/fare.ts` — illustrative fare calculation only
 - `src/routes` — home, booking, services, FAQ, sign-in, sign-up, driver, partner, passenger, dashboard and legal pages
 
-See [docs/supabase-baseline.md](docs/supabase-baseline.md) for the applied database foundation and its security boundaries.
+See [docs/supabase-baseline.md](docs/supabase-baseline.md) for the applied database foundation and its security boundaries. See [docs/admin-bootstrap.md](docs/admin-bootstrap.md) for secure administrator setup and required production secrets.
 
 ## Development commands
 
@@ -61,4 +61,4 @@ Core rules:
 
 ## Launch gate
 
-No production/security audit is complete. Launch only after account, booking, dispatch, pricing, contact, rental application, rewards, admin authorization, privacy, legal review and CI acceptance criteria in the production plan have passed.
+No production/security audit is complete. The deployed Edge Function requires map-provider secrets and an approved fare schedule before quoting or accepting real rides. Launch only after account, booking, dispatch, pricing, contact, rental application, rewards, admin authorization, privacy, legal review and CI acceptance criteria in the production plan have passed.
