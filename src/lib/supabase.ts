@@ -58,7 +58,7 @@ export async function signUp(email: string, password: string, fullName: string, 
   return { session, user: result["user"] as AuthUser | undefined };
 }
 export async function requestPasswordReset(email: string) {
-  const redirect = typeof window === "undefined" ? undefined : `${window.location.origin}/signin`;
+  const redirect = typeof window === "undefined" ? undefined : `${window.location.origin}/reset-password`;
   const path = redirect ? `recover?redirect_to=${encodeURIComponent(redirect)}` : "recover";
   await authRequest(path, { email });
 }
@@ -68,6 +68,27 @@ export async function signIn(email: string, password: string) {
   if (!session) throw new Error("Sign-in did not return an active session. Check your email confirmation settings.");
   writeSession(session);
   return session;
+}
+export async function updatePasswordFromRecovery(password: string) {
+  if (typeof window === "undefined") throw new Error("Open the password reset link in a browser.");
+  const { url, key } = config();
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const accessToken = hash.get("access_token");
+  const refreshToken = hash.get("refresh_token");
+  const tokenType = hash.get("type");
+  if (!accessToken || tokenType !== "recovery") throw new Error("This reset link is invalid or expired. Request a new one.");
+  const response = await fetch(`${url}/auth/v1/user`, {
+    method: "PUT",
+    headers: { apikey: key, Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof payload["message"] === "string" ? payload["message"] : "Password could not be updated. Request a new reset link.");
+  if (refreshToken) {
+    const expiresIn = Number(hash.get("expires_in") ?? 3600);
+    writeSession({ access_token: accessToken, refresh_token: refreshToken, expires_at: Math.floor(Date.now() / 1000) + expiresIn, token_type: hash.get("token_type") ?? "bearer" });
+  }
+  window.history.replaceState(null, "", window.location.pathname);
 }
 export async function signOut() {
   const session = readSession();
