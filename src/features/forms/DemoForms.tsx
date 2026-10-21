@@ -86,7 +86,7 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" | "driver" }) {
     try {
       if (mode === "signin") {
         const session = await signIn(v.email.trim(), v.password);
-        const metadataType = session.user?.user_metadata?.account_type;
+        const metadataType = session.user?.user_metadata?.["account_type"];
         await invokeOzannif({ action: "ensure-profile", language: lang, accountType: metadataType === "driver" ? "driver" : "passenger" });
         setSuccessMsg(messages.signedIn);
       } else {
