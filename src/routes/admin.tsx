@@ -13,6 +13,8 @@ type Queue = {
   partners: { id: string; business_name: string; city: string; contact_email: string; fleet_size: number; verification_status: string; created_at: string }[];
   vehicles: { id: string; driver_id: string; make: string; model: string; plate_number: string; vehicle_class: string; verification_status: string; created_at: string }[];
   messages: { id: string; name: string; email: string; message: string; status: string; created_at: string }[];
+  rentals: { id: string; driver_id: string; city: string; notes: string | null; status: string; created_at: string; terms_accepted_at: string | null }[];
+  approvedPartners: { id: string; business_name: string; city: string }[];
 };
 type AdminData = { overview: Overview; queues: Queue };
 
@@ -29,10 +31,11 @@ function Page() {
   const [busy, setBusy] = useState("");
   const [form, setForm] = useState({ vehicleClass: "economy", baseFare: "8", perKm: "3", perMinute: "0.4", minimumFare: "10", platformFee: "2", fuelPrice: "", litersPer100Km: "", active: false });
   const [fareMessage, setFareMessage] = useState("");
+  const [rentalPartner, setRentalPartner] = useState("");
   const labels = {
-    ar: { load: "جارٍ تحميل لوحة الإدارة…", denied: "خاصك تدخل بحساب عندو صلاحية الإدارة.", signIn: "تسجيل الدخول", drivers: "طلبات السائقين", partners: "طلبات الشركاء", vehicles: "طلبات السيارات", messages: "رسائل التواصل", approve: "موافقة", reject: "رفض", empty: "ما كاين حتى طلب معلّق.", refresh: "تحديث", pricingNote: "ما تفعّلش التسعير حتى تتأكد من الوقود، استهلاك السيارات، دخل السائق والعمولة.", vehicle: "فئة السيارة", base: "ثمن الانطلاق", perKm: "لكل كيلومتر", perMinute: "لكل دقيقة", minimum: "الحد الأدنى", fee: "عمولة المنصة", fuel: "ثمن اللتر (اختياري)", consumption: "لتر/100 كم (اختياري)", activate: "تفعيل هاد القاعدة", save: "حفظ قاعدة التسعير", saved: "تسجلات قاعدة التسعير.", draft: "تسجلات كقاعدة غير مفعّلة.", pending: "معلّق", admin: "صلاحيات الإدارة مطلوبة." },
-    fr: { load: "Chargement de la console…", denied: "Connectez-vous avec un compte administrateur.", signIn: "Se connecter", drivers: "Candidatures chauffeurs", partners: "Candidatures partenaires", vehicles: "Véhicules à vérifier", messages: "Messages reçus", approve: "Approuver", reject: "Refuser", empty: "Aucune demande en attente.", refresh: "Actualiser", pricingNote: "N'activez les tarifs qu'après validation du carburant, de la consommation, du revenu chauffeur et de la commission.", vehicle: "Catégorie", base: "Prise en charge", perKm: "Par kilomètre", perMinute: "Par minute", minimum: "Tarif minimum", fee: "Commission plateforme", fuel: "Prix du litre (facultatif)", consumption: "L/100 km (facultatif)", activate: "Activer cette règle", save: "Enregistrer le tarif", saved: "Règle tarifaire enregistrée.", draft: "Règle enregistrée en brouillon.", pending: "En attente", admin: "Droits administrateur requis." },
-    en: { load: "Loading admin console…", denied: "Sign in with an account that has admin privileges.", signIn: "Sign in", drivers: "Driver applications", partners: "Partner applications", vehicles: "Vehicle reviews", messages: "Contact messages", approve: "Approve", reject: "Reject", empty: "No pending items.", refresh: "Refresh", pricingNote: "Do not activate fares until fuel cost, vehicle consumption, driver earnings and commission have been reviewed.", vehicle: "Vehicle class", base: "Base fare", perKm: "Per kilometre", perMinute: "Per minute", minimum: "Minimum fare", fee: "Platform fee", fuel: "Fuel price per litre (optional)", consumption: "Litres per 100 km (optional)", activate: "Activate this rule", save: "Save fare rule", saved: "Fare rule saved.", draft: "Fare rule saved as inactive.", pending: "Pending", admin: "Admin privileges required." },
+    ar: { load: "جارٍ تحميل لوحة الإدارة…", denied: "خاصك تدخل بحساب عندو صلاحية الإدارة.", signIn: "تسجيل الدخول", drivers: "طلبات السائقين", partners: "طلبات الشركاء", vehicles: "طلبات السيارات", messages: "رسائل التواصل", approve: "موافقة", reject: "رفض", empty: "ما كاين حتى طلب معلّق.", refresh: "تحديث", pricingNote: "ما تفعّلش التسعير حتى تتأكد من الوقود، استهلاك السيارات، دخل السائق والعمولة.", vehicle: "فئة السيارة", base: "ثمن الانطلاق", perKm: "لكل كيلومتر", perMinute: "لكل دقيقة", minimum: "الحد الأدنى", fee: "عمولة المنصة", fuel: "ثمن اللتر (اختياري)", consumption: "لتر/100 كم (اختياري)", activate: "تفعيل هاد القاعدة", save: "حفظ قاعدة التسعير", saved: "تسجلات قاعدة التسعير.", draft: "تسجلات كقاعدة غير مفعّلة.", pending: "معلّق", admin: "صلاحيات الإدارة مطلوبة.", rentals: "طلبات كراء السيارات", match: "مطابقة مع شريك ومنح 7 أيام بلا عمولة", noPartners: "ما كاين حتى شريك معتمد متاح." },
+    fr: { load: "Chargement de la console…", denied: "Connectez-vous avec un compte administrateur.", signIn: "Se connecter", drivers: "Candidatures chauffeurs", partners: "Candidatures partenaires", vehicles: "Véhicules à vérifier", messages: "Messages reçus", approve: "Approuver", reject: "Refuser", empty: "Aucune demande en attente.", refresh: "Actualiser", pricingNote: "N'activez les tarifs qu'après validation du carburant, de la consommation, du revenu chauffeur et de la commission.", vehicle: "Catégorie", base: "Prise en charge", perKm: "Par kilomètre", perMinute: "Par minute", minimum: "Tarif minimum", fee: "Commission plateforme", fuel: "Prix du litre (facultatif)", consumption: "L/100 km (facultatif)", activate: "Activer cette règle", save: "Enregistrer le tarif", saved: "Règle tarifaire enregistrée.", draft: "Règle enregistrée en brouillon.", pending: "En attente", admin: "Droits administrateur requis.", rentals: "Demandes de location de véhicule", match: "Associer et accorder 7 jours sans commission", noPartners: "Aucun partenaire agréé disponible." },
+    en: { load: "Loading admin console…", denied: "Sign in with an account that has admin privileges.", signIn: "Sign in", drivers: "Driver applications", partners: "Partner applications", vehicles: "Vehicle reviews", messages: "Contact messages", approve: "Approve", reject: "Reject", empty: "No pending items.", refresh: "Refresh", pricingNote: "Do not activate fares until fuel cost, vehicle consumption, driver earnings and commission have been reviewed.", vehicle: "Vehicle class", base: "Base fare", perKm: "Per kilometre", perMinute: "Per minute", minimum: "Minimum fare", fee: "Platform fee", fuel: "Fuel price per litre (optional)", consumption: "Litres per 100 km (optional)", activate: "Activate this rule", save: "Save fare rule", saved: "Fare rule saved.", draft: "Fare rule saved as inactive.", pending: "Pending", admin: "Admin privileges required.", rentals: "Driver rental requests", match: "Match partner and grant 7 commission-free days", noPartners: "No approved partners are available." },
   }[lang];
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -44,6 +47,13 @@ function Page() {
   const review = async (targetType: "driver" | "partner" | "vehicle", targetId: string, status: "approved" | "rejected") => {
     setBusy(targetId); setError("");
     try { await invokeOzannif({ action: "admin-review", targetType, targetId, status }); await load(); }
+    catch (e) { setError(e instanceof Error ? e.message : labels.admin); }
+    finally { setBusy(""); }
+  };
+  const matchRental = async (requestId: string) => {
+    if (!rentalPartner) { setError(labels.noPartners); return; }
+    setBusy(requestId); setError("");
+    try { await invokeOzannif({ action: "admin-match-rental", requestId, partnerId: rentalPartner }); await load(); }
     catch (e) { setError(e instanceof Error ? e.message : labels.admin); }
     finally { setBusy(""); }
   };
@@ -75,6 +85,12 @@ function Page() {
           </Panel>
           <Panel title={labels.vehicles} wide>
             {data.queues.vehicles.length ? <div className="grid gap-3">{data.queues.vehicles.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="font-semibold">{item.make} {item.model} · {item.plate_number}</p><p className="text-xs text-muted-foreground">{item.vehicle_class} · {item.driver_id}</p></div>{reviewButtons("vehicle", item.id)}</article>)}</div> : <Empty text={labels.empty} />}
+          </Panel>
+          <Panel title={labels.rentals} wide>
+            {data.queues.rentals.length ? <div className="grid gap-3">{data.queues.rentals.map((item) => <article key={item.id} className="grid gap-3 rounded-lg border p-3">
+              <div><p className="font-semibold">{item.city} · {item.driver_id}</p><p className="mt-1 text-sm text-muted-foreground">{item.notes || "—"}</p><p className="mt-1 text-xs text-muted-foreground">{item.terms_accepted_at ? new Date(item.terms_accepted_at).toLocaleString(lang) : ""}</p></div>
+              {data.queues.approvedPartners.length ? <div className="flex flex-wrap gap-2"><select aria-label={labels.partners} className="min-w-48 rounded-lg border bg-card px-3 py-2 text-sm" value={rentalPartner} onChange={(e) => setRentalPartner(e.target.value)}><option value="">{labels.partners}</option>{data.queues.approvedPartners.map((partner) => <option key={partner.id} value={partner.id}>{partner.business_name} · {partner.city}</option>)}</select><Button size="sm" onClick={() => void matchRental(item.id)} disabled={busy === item.id || !rentalPartner}>{busy === item.id ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : null}{labels.match}</Button></div> : <p className="text-sm text-muted-foreground">{labels.noPartners}</p>}
+            </article>)}</div> : <Empty text={labels.empty} />}
           </Panel>
           <Panel title={labels.messages} wide>
             {data.queues.messages.length ? <div className="grid gap-3">{data.queues.messages.map((item) => <article key={item.id} className="rounded-lg border p-3"><p className="font-semibold">{item.name} · <a className="underline" href={`mailto:${item.email}`}>{item.email}</a></p><p className="mt-2 whitespace-pre-wrap text-sm">{item.message}</p><p className="mt-2 text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString(lang)}</p></article>)}</div> : <Empty text={labels.empty} />}
