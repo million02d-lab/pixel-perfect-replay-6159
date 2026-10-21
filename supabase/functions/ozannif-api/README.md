@@ -1,12 +1,12 @@
 # Ozannif Edge Function
 
-The `ozannif-api` function is deployed to the connected Supabase project. The repository copy must be kept in sync with deployed versions.
+The `ozannif-api` function is deployed to the connected Supabase project. The repository copy must be kept in sync with deployed versions; the current live version is tracked in Supabase.
 
 ## Actions
 
 - `ensure-profile`: creates the user's profile if missing; driver intent creates a pending driver profile. It does not grant a privileged role.
 - `geocode`: resolves a Morocco location through the configured Mapbox or Google geocoding API and limits results to the current Rabat–Salé service area.
-- `quote`: calculates route distance/duration through the configured directions provider and uses an active database fare rule.
+- `quote`: calculates route distance/duration through the configured directions provider and uses an active database fare rule, including a fuel component based on fuel price and assumed litres per 100 km.
 - `create-trip`: recalculates the route and fare on the server, persists a trip, and uses a caller-supplied UUID idempotency key.
 - `partner-application`: persists a partner application as pending review.
 - `rental-request`: requires an approved driver profile and explicit acceptance of the recorded terms version.
