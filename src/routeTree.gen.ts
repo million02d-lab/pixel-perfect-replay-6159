@@ -18,8 +18,10 @@ import { Route as DriverDashboardRouteImport } from './routes/driver-dashboard'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as PartnersRouteImport } from './routes/partners'
+import { Route as PartnerDashboardRouteImport } from './routes/partner-dashboard'
 import { Route as PassengerRouteImport } from './routes/passenger'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as ServicesRouteImport } from './routes/services'
 import { Route as SigninRouteImport } from './routes/signin'
@@ -71,6 +73,11 @@ const PartnersRoute = PartnersRouteImport.update({
   path: '/partners',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PartnerDashboardRoute = PartnerDashboardRouteImport.update({
+  id: '/partner-dashboard',
+  path: '/partner-dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PassengerRoute = PassengerRouteImport.update({
   id: '/passenger',
   path: '/passenger',
@@ -79,6 +86,11 @@ const PassengerRoute = PassengerRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SafetyRoute = SafetyRouteImport.update({
@@ -117,8 +129,12 @@ export interface FileRoutesByFullPath {
   '/faq': typeof FaqRoute
   '/how-it-works': typeof HowItWorksRoute
   '/partners': typeof PartnersRoute
+  '/partner-dashboard': typeof PartnerDashboardRoute
+  '/partner-dashboard': typeof PartnerDashboardRoute
   '/passenger': typeof PassengerRoute
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/safety': typeof SafetyRoute
   '/services': typeof ServicesRoute
   '/signin': typeof SigninRoute
@@ -135,8 +151,10 @@ export interface FileRoutesByTo {
   '/faq': typeof FaqRoute
   '/how-it-works': typeof HowItWorksRoute
   '/partners': typeof PartnersRoute
+  '/partner-dashboard': typeof PartnerDashboardRoute
   '/passenger': typeof PassengerRoute
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/safety': typeof SafetyRoute
   '/services': typeof ServicesRoute
   '/signin': typeof SigninRoute
@@ -174,8 +192,10 @@ export interface FileRouteTypes {
     | '/faq'
     | '/how-it-works'
     | '/partners'
+    | '/partner-dashboard'
     | '/passenger'
     | '/privacy'
+    | '/reset-password'
     | '/safety'
     | '/services'
     | '/signin'
@@ -192,8 +212,10 @@ export interface FileRouteTypes {
     | '/faq'
     | '/how-it-works'
     | '/partners'
+    | '/partner-dashboard'
     | '/passenger'
     | '/privacy'
+    | '/reset-password'
     | '/safety'
     | '/services'
     | '/signin'
@@ -210,8 +232,10 @@ export interface FileRouteTypes {
     | '/faq'
     | '/how-it-works'
     | '/partners'
+    | '/partner-dashboard'
     | '/passenger'
     | '/privacy'
+    | '/reset-password'
     | '/safety'
     | '/services'
     | '/signin'
@@ -229,8 +253,10 @@ export interface RootRouteChildren {
   FaqRoute: typeof FaqRoute
   HowItWorksRoute: typeof HowItWorksRoute
   PartnersRoute: typeof PartnersRoute
+  PartnerDashboardRoute: typeof PartnerDashboardRoute
   PassengerRoute: typeof PassengerRoute
   PrivacyRoute: typeof PrivacyRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SafetyRoute: typeof SafetyRoute
   ServicesRoute: typeof ServicesRoute
   SigninRoute: typeof SigninRoute
@@ -303,6 +329,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PartnersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/partner-dashboard': {
+      id: '/partner-dashboard'
+      path: '/partner-dashboard'
+      fullPath: '/partner-dashboard'
+      preLoaderRoute: typeof PartnerDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/passenger': {
       id: '/passenger'
       path: '/passenger'
@@ -315,6 +348,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/safety': {
@@ -365,8 +405,10 @@ const rootRouteChildren: RootRouteChildren = {
   FaqRoute: FaqRoute,
   HowItWorksRoute: HowItWorksRoute,
   PartnersRoute: PartnersRoute,
+  PartnerDashboardRoute: PartnerDashboardRoute,
   PassengerRoute: PassengerRoute,
   PrivacyRoute: PrivacyRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SafetyRoute: SafetyRoute,
   ServicesRoute: ServicesRoute,
   SigninRoute: SigninRoute,
