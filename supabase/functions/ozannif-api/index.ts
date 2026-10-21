@@ -12,6 +12,7 @@ const CONFIGURED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").ma
 const DEFAULT_ORIGINS = ["https://pixel-perfect-replay-6159.lovable.app", "http://localhost:5173", "http://127.0.0.1:5173"];
 const VEHICLES = new Set(["economy", "comfort", "van"]);
 const CITIES = new Set(["Rabat", "Sale", "Temara", "Other"]);
+const MATCH_RADIUS_KM = Math.min(30, Math.max(1, Number(Deno.env.get("MATCH_RADIUS_KM") ?? "10") || 10));
 const contactAttempts = new Map<string, { start: number; count: number }>();
 
 type Json = Record<string, unknown>;
@@ -97,6 +98,12 @@ async function quote(aLat: number, aLng: number, bLat: number, bLng: number, veh
   return { route, ruleId: rule.id, vehicleClass: vehicle, currency: "MAD", breakdown: { base: round2(base), distance: round2(distance), time: round2(time), fuel: round2(fuel), platformFee: round2(fee), total: round2(total), driverNetBeforeOtherCosts: round2(total - fee) } };
 }
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const rad = (v: number) => v * Math.PI / 180;
+  const dLat = rad(lat2 - lat1), dLon = rad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 
 async function isAdmin(userId: string) {
   const r = await db(`profiles?select=role&id=eq.${userId}&limit=1`);
@@ -280,19 +287,47 @@ Deno.serve(async (req: Request) => {
       const driver = await db(`driver_profiles?select=verification_status&user_id=eq.${user.id}&limit=1`);
       if (!driver.ok) throw new Error("Could not load driver profile.");
       const driverProfile = (await driver.json())[0] ?? null;
-      const presenceResult = await db(`driver_presence?select=online,last_seen_at,updated_at&user_id=eq.${user.id}&limit=1`);
+      const presenceResult = await db(`driver_presence?select=online,last_seen_at,updated_at,latitude,longitude&user_id=eq.${user.id}&limit=1`);
       const presence = presenceResult.ok ? (await presenceResult.json())[0] ?? { online: false } : { online: false };
       const assignedResult = await db(`trips?select=id,status,pickup_label,destination_label,vehicle_class,quoted_fare_mad,platform_fee_mad,route_distance_m,route_duration_s,created_at,passenger_id&driver_id=eq.${user.id}&order=created_at.desc&limit=30`);
       if (!assignedResult.ok) throw new Error("Could not load assigned trips.");
       let openTrips: Json[] = [];
       if (driverProfile?.verification_status === "approved") {
         const vehicles = await db(`vehicles?select=id&driver_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
-        if (vehicles.ok && (await vehicles.json()).length > 0 && presence.online) {
-          const open = await db("trips?select=id,status,pickup_label,destination_label,vehicle_class,quoted_fare_mad,route_distance_m,route_duration_s,requested_at&status=eq.requested&driver_id=is.null&order=requested_at.asc&limit=20");
-          if (open.ok) openTrips = await open.json();
+        if (vehicles.ok && (await vehicles.json()).length > 0 && presence.online && Number.isFinite(presence.latitude) && Number.isFinite(presence.longitude)) {
+          const open = await db("trips?select=id,status,pickup_label,destination_label,pickup_latitude,pickup_longitude,vehicle_class,quoted_fare_mad,platform_fee_mad,route_distance_m,route_duration_s,requested_at&status=eq.requested&driver_id=is.null&order=requested_at.asc&limit=100");
+          if (open.ok) {
+            const candidates = await open.json();
+            openTrips = candidates.map((trip: Json) => ({
+              ...trip,
+              pickup_distance_km: round2(haversineKm(Number(presence.latitude), Number(presence.longitude), Number(trip.pickup_latitude), Number(trip.pickup_longitude))),
+            })).filter((trip: Json) => Number(trip.pickup_distance_km) <= MATCH_RADIUS_KM)
+              .sort((a: Json, b: Json) => Number(a.pickup_distance_km) - Number(b.pickup_distance_km))
+              .slice(0, 20);
+          }
         }
       }
       return json({ driverProfile, presence, assignedTrips: await assignedResult.json(), openTrips }, 200, origin);
+    }
+
+    if (action === "update-driver-location") {
+      if (!user) return fail("Sign in is required.", 401, origin);
+      const latitude = num(body.latitude, -90, 90);
+      const longitude = num(body.longitude, -180, 180);
+      if (latitude === null || longitude === null) return fail("Valid GPS coordinates are required.", 422, origin);
+      const driver = await db(`driver_profiles?select=user_id&user_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
+      if (!driver.ok || (await driver.json()).length === 0) return fail("Only approved drivers can share location.", 403, origin);
+      const vehicles = await db(`vehicles?select=id&driver_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
+      if (!vehicles.ok || (await vehicles.json()).length === 0) return fail("An approved vehicle is required to share location.", 403, origin);
+      const r = await db(`driver_presence?user_id=eq.${user.id}&online=eq.true&select=user_id,online,latitude,longitude,last_seen_at`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ latitude, longitude, last_seen_at: new Date().toISOString() }),
+      });
+      if (!r.ok) throw new Error("Driver location could not be saved.");
+      const rows = await r.json();
+      if (!rows.length) return fail("Go online before sharing your location.", 409, origin);
+      return json({ presence: rows[0] }, 200, origin);
     }
 
     if (action === "set-driver-availability") {
@@ -306,7 +341,7 @@ Deno.serve(async (req: Request) => {
       }
       const r = await db("driver_presence?on_conflict=user_id&select=user_id,online,last_seen_at,updated_at", {
         method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-        body: JSON.stringify({ user_id: user.id, online: body.online, last_seen_at: body.online ? new Date().toISOString() : null }),
+        body: JSON.stringify({ user_id: user.id, online: body.online, last_seen_at: body.online ? new Date().toISOString() : null, latitude: body.online ? undefined : null, longitude: body.online ? undefined : null }),
       });
       if (!r.ok) throw new Error("Availability could not be saved.");
       return json({ presence: (await r.json())[0] }, 200, origin);
@@ -466,8 +501,16 @@ Deno.serve(async (req: Request) => {
       if (!driver.ok || (await driver.json()).length === 0) return fail("Only approved drivers can accept trips.", 403, origin);
       const vehicles = await db(`vehicles?select=id&driver_id=eq.${user.id}&verification_status=eq.approved&limit=1`);
       if (!vehicles.ok || (await vehicles.json()).length === 0) return fail("An approved vehicle is required before accepting trips.", 403, origin);
-      const presence = await db(`driver_presence?select=online&user_id=eq.${user.id}&limit=1`);
-      if (!presence.ok || (await presence.json())[0]?.online !== true) return fail("Go online before accepting trips.", 409, origin);
+      const presence = await db(`driver_presence?select=online,latitude,longitude&user_id=eq.${user.id}&limit=1`);
+      if (!presence.ok) throw new Error("Could not verify driver availability.");
+      const presenceRow = (await presence.json())[0];
+      if (presenceRow?.online !== true || !Number.isFinite(presenceRow.latitude) || !Number.isFinite(presenceRow.longitude)) return fail("Go online and allow location before accepting trips.", 409, origin);
+      const candidateResult = await db(`trips?select=pickup_latitude,pickup_longitude&id=eq.${tripId}&status=eq.requested&driver_id=is.null&limit=1`);
+      if (!candidateResult.ok) throw new Error("Could not verify trip availability.");
+      const candidate = (await candidateResult.json())[0];
+      if (!candidate) return fail("This trip is no longer available.", 409, origin);
+      const pickupDistance = haversineKm(Number(presenceRow.latitude), Number(presenceRow.longitude), Number(candidate.pickup_latitude), Number(candidate.pickup_longitude));
+      if (pickupDistance > MATCH_RADIUS_KM) return fail("This pickup is outside your current matching radius.", 403, origin);
       const rental = await db(`rental_requests?select=id&driver_id=eq.${user.id}&status=eq.matched&commission_free_until=gt.${new Date().toISOString()}&limit=1`);
       const commissionFree = rental.ok && (await rental.json()).length > 0;
       const r = await db(`trips?id=eq.${tripId}&status=eq.requested&driver_id=is.null&select=id,status,passenger_id,driver_id,quoted_fare_mad,platform_fee_mad`, {
