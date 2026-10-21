@@ -190,21 +190,22 @@ export function RentalRequestForm() {
   const [city, setCity] = useState("Rabat");
   const [notes, setNotes] = useState("");
   const [accepted, setAccepted] = useState(false);
+  const [contactSharingAccepted, setContactSharingAccepted] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const messages = {
-    ar: { title: "باغي تخدم بلا سيارتك؟", sub: "قدّم طلب باش نربطوك بشريك كراء معتمد. الطلب ما كيعنيش أن السيارة تحجزات.", terms: "كنوافق أن الطلب يبقى خاضعاً للتحقق وموافقة الشريك. من بعد ما الشريك المعتمد يأكد الكراء الفعلي، كتبدأ فترة 7 أيام بلا عمولة المنصة.", submit: "طلب مطابقة مع شريك", ok: "تسجل طلب الكراء وهو قيد المراجعة.", failed: "تعذر إرسال الطلب." },
-    fr: { title: "Vous n'avez pas de voiture ?", sub: "Demandez une mise en relation avec un partenaire de location agréé. La demande ne réserve pas un véhicule.", terms: "J'accepte la vérification et la confirmation séparée du partenaire. Après confirmation effective de la location par le partenaire agréé, une période de 7 jours sans commission plateforme commence.", submit: "Demander une mise en relation", ok: "Demande de location enregistrée, en attente de vérification.", failed: "Impossible d'envoyer la demande." },
-    en: { title: "No car of your own?", sub: "Request a match with an approved rental partner. This request does not reserve a vehicle.", terms: "I accept verification and separate confirmation by the partner. After the approved partner confirms the actual rental, a 7-day platform-commission-free period begins.", submit: "Request rental match", ok: "Rental request saved and awaiting review.", failed: "The request could not be submitted." },
+    ar: { title: "باغي تخدم بلا سيارتك؟", sub: "قدّم طلب باش نربطوك بشريك كراء معتمد. الطلب ما كيعنيش أن السيارة تحجزات.", terms: "كنوافق أن الطلب يبقى خاضعاً للتحقق وموافقة الشريك. من بعد ما الشريك المعتمد يأكد الكراء الفعلي، كتبدأ فترة 7 أيام بلا عمولة المنصة.", contactConsent: "كنوافق يتشارك الاسم ورقم الهاتف ديالي مع الشريك المعتمد اللي غادي يتعيّن لطلب الكراء، غير للتواصل بخصوص الكراء.", submit: "طلب مطابقة مع شريك", ok: "تسجل طلب الكراء وهو قيد المراجعة.", failed: "تعذر إرسال الطلب." },
+    fr: { title: "Vous n'avez pas de voiture ?", sub: "Demandez une mise en relation avec un partenaire de location agréé. La demande ne réserve pas un véhicule.", terms: "J'accepte la vérification et la confirmation séparée du partenaire. Après confirmation effective de la location par le partenaire agréé, une période de 7 jours sans commission plateforme commence.", contactConsent: "J'autorise le partage de mon nom et de mon téléphone avec le partenaire agréé affecté à ma demande, uniquement pour organiser la location.", submit: "Demander une mise en relation", ok: "Demande de location enregistrée, en attente de vérification.", failed: "Impossible d'envoyer la demande." },
+    en: { title: "No car of your own?", sub: "Request a match with an approved rental partner. This request does not reserve a vehicle.", terms: "I accept verification and separate confirmation by the partner. After the approved partner confirms the actual rental, a 7-day platform-commission-free period begins.", contactConsent: "I consent to sharing my name and phone number with the approved partner assigned to my request, only to arrange the rental.", submit: "Request rental match", ok: "Rental request saved and awaiting review.", failed: "The request could not be submitted." },
   }[lang];
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setError(""); setSuccess("");
-    if (!accepted) { setError(messages.terms); setStatus("error"); return; }
+    if (!accepted || !contactSharingAccepted) { setError(!accepted ? messages.terms : messages.contactConsent); setStatus("error"); return; }
     setStatus("loading");
     try {
-      await invokeOzannif({ action: "rental-request", city: city === "Salé" ? "Sale" : city === "Témara" ? "Temara" : city, notes: notes.trim() || null, termsAccepted: accepted });
-      setSuccess(messages.ok); setStatus("success"); setNotes(""); setAccepted(false);
+      await invokeOzannif({ action: "rental-request", city: city === "Salé" ? "Sale" : city === "Témara" ? "Temara" : city, notes: notes.trim() || null, termsAccepted: accepted, contactSharingAccepted });
+      setSuccess(messages.ok); setStatus("success"); setNotes(""); setAccepted(false); setContactSharingAccepted(false);
     } catch (e) { setError(e instanceof Error ? e.message : messages.failed); setStatus("error"); }
   };
   return (
@@ -213,6 +214,7 @@ export function RentalRequestForm() {
       <Field id={`${id}city`} label={t.partner.city}><select id={`${id}city`} className={inputCls} value={city} onChange={(e) => setCity(e.target.value)}><option>Rabat</option><option>Salé</option><option>Témara</option></select></Field>
       <Field id={`${id}notes`} label={t.contact.message}><textarea id={`${id}notes`} rows={3} maxLength={1000} className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={lang === "ar" ? "ملاحظات اختيارية حول نوع السيارة أو مدة الكراء" : lang === "fr" ? "Type de véhicule ou durée souhaitée (facultatif)" : "Preferred vehicle or rental duration (optional)"} /></Field>
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} /><span>{messages.terms}</span></label>
+      <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={contactSharingAccepted} onChange={(e) => setContactSharingAccepted(e.target.checked)} /><span>{messages.contactConsent}</span></label>
       {status === "success" && <p role="status" className="rounded-lg bg-success/10 p-3 text-sm">{success}</p>}
       {status === "error" && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={status === "loading"}>{status === "loading" ? <Loader2 className="animate-spin" /> : messages.submit}</Button>
