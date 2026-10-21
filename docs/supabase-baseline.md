@@ -15,6 +15,7 @@ Project: `OZANNIF` (region `eu-central-1`). The initial database migration was a
 - `loyalty_ledger`: passenger reward accounting ledger.
 - `contact_messages`: contact form submissions, reserved for backend processing.
 - `driver_presence`: server-managed online/offline state for approved drivers.
+- `driver_documents`: private document metadata for identity, driving licence, vehicle registration and insurance; underlying files are stored in a private Storage bucket.
 
 ## Security baseline
 
@@ -36,7 +37,7 @@ Before launch, implement and test:
 1. Signup/sign-in integration and a safe profile provisioning flow.
 2. Server-side fare quoting from a real directions provider; do not trust browser-supplied distance, duration, fare, commission or role.
 3. Atomic trip request and driver matching, plus validated trip state transitions.
-4. Admin-only driver/vehicle/partner review with server-side role checks.
+4. Admin-only driver/vehicle/partner and document review with server-side role checks; driver approval requires approved identity and driving-licence documents, and vehicle approval requires approved registration and insurance documents.
 5. Contact form endpoint with abuse prevention.
 6. Reward issuance only for verified completed trips, with duplicate prevention.
 7. Rental matching and one-week commission-free terms with explicit acceptance and server-calculated eligibility.
@@ -52,7 +53,7 @@ This document is a deployment record, not a substitute for automated integration
 
 ## Edge Function status
 
-The `ozannif-api` Edge Function is deployed and currently handles account-profile provisioning, geocoding, server-side quote calculation, trip creation, driver availability, trip acceptance and status transitions, loyalty points on completion, partner/vehicle applications, rental requests, admin reviews, fare-rule management, rental matching, and contact persistence. Its source is versioned at `supabase/functions/ozannif-api/index.ts`.
+The `ozannif-api` Edge Function is deployed and currently handles account-profile provisioning, geocoding, server-side quote calculation, trip creation, driver availability, trip acceptance and status transitions, loyalty points on completion, partner/vehicle applications, private driver-document registration/review, rental requests, admin reviews, fare-rule management, rental matching, and contact persistence. Its source is versioned at `supabase/functions/ozannif-api/index.ts`.
 
 The function is configured with gateway JWT verification disabled because the public contact action accepts anonymous submissions. Every other action independently validates the bearer token through Supabase Auth; admin actions additionally check the server-side `profiles.role`. Configure `ALLOWED_ORIGINS` explicitly before production. Public contact throttling is currently per-instance only and needs a durable rate limiter/CAPTCHA for a public launch.
 
