@@ -7,6 +7,7 @@ const MAPBOX_TOKEN = Deno.env.get("MAPBOX_ACCESS_TOKEN") ?? "";
 const GOOGLE_MAPS_KEY = Deno.env.get("GOOGLE_MAPS_API_KEY") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const SUPPORT_EMAIL = Deno.env.get("SUPPORT_EMAIL") ?? "";
+const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") ?? "";
 const CONFIGURED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
 const DEFAULT_ORIGINS = ["https://pixel-perfect-replay-6159.lovable.app", "http://localhost:5173", "http://127.0.0.1:5173"];
 const VEHICLES = new Set(["economy", "comfort", "van"]);
@@ -492,13 +493,13 @@ Deno.serve(async (req: Request) => {
       if (!r.ok) throw new Error("Message could not be saved.");
       const saved = (await r.json())[0];
       let emailSent = false;
-      if (RESEND_API_KEY && SUPPORT_EMAIL) {
+      if (RESEND_API_KEY && SUPPORT_EMAIL && RESEND_FROM_EMAIL) {
         try {
           const mail = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              from: Deno.env.get("RESEND_FROM_EMAIL") ?? "Ozannif Contact <onboarding@resend.dev>",
+              from: RESEND_FROM_EMAIL,
               to: [SUPPORT_EMAIL],
               subject: `New Ozannif contact message #${saved.id}`,
               text: `Name: ${name}\nEmail: ${email}\n\n${message}`,
