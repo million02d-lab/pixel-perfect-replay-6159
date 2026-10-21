@@ -93,3 +93,44 @@ export async function invokeOzannif<T = Record<string, unknown>>(body: Record<st
   if (!response.ok) throw new Error(typeof payload["error"] === "string" ? payload["error"] : "The request could not be completed.");
   return payload as T;
 }
+
+ 
+export type DriverDocumentType = "identity" | "driving_license" | "vehicle_registration" | "insurance";
+export async function uploadDriverDocument(file: File, docType: DriverDocumentType) {
+  const allowed = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+  if (!allowed.has(file.type)) throw new Error("Use a PDF, JPG or PNG image.");
+  if (file.size < 1 || file.size > 10 * 1024 * 1024) throw new Error("Each document must be smaller than 10 MB.");
+  const { url, key } = config();
+  const token = await getAccessToken();
+  let userId = readSession()?.user?.id;
+  if (!userId) {
+    const current = await fetch(`${url}/auth/v1/user`, { headers: { apikey: key, Authorization: `Bearer ${token}` } });
+    const currentUser = await current.json().catch(() => ({}));
+    if (!current.ok || typeof currentUser.id !== "string") throw new Error("Please sign in again before uploading documents.");
+    userId = currentUser.id;
+  }
+  const ext = file.type === "application/pdf" ? "pdf" : file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
+  const storagePath = `${userId}/${docType}/${crypto.randomUUID()}.${ext}`;
+  const encodedPath = storagePath.split("/").map(encodeURIComponent).join("/");
+  const uploaded = await fetch(`${url}/storage/v1/object/driver-documents/${encodedPath}`, {
+    method: "POST",
+    headers: { apikey: key, Authorization: `Bearer ${token}`, "Content-Type": file.type, "x-upsert": "false" },
+    body: file,
+  });
+  if (!uploaded.ok) {
+    const payload = await uploaded.json().catch(() => ({}));
+    throw new Error(typeof payload.message === "string" ? payload.message : "Document upload failed. Check your driver application status.");
+  }
+  const safeName = file.name.replace(/[^\p{L}\p{N}._-]+/gu, "_").slice(0, 180) || `document.${ext}`;
+  try {
+    await invokeOzannif({ action: "register-document", docType, storagePath, originalFilename: safeName, mimeType: file.type, fileSizeBytes: file.size });
+  } catch (error) {
+    try {
+      await fetch(`${url}/storage/v1/object/driver-documents/${encodedPath}`, {
+        method: "DELETE",
+        headers: { apikey: key, Authorization: `Bearer ${token}` },
+      });
+    } catch { /* Keep any cleanup failure private; the object remains in a private bucket. */ }
+    throw error;
+  }
+}
