@@ -71,7 +71,7 @@ Initial server-validated lifecycle is implemented: requested → matched → dri
 
 ## Phase 4 — Rental-driver onboarding
 
-The dedicated driver-without-car journey is implemented in the UI and Edge Function. A partner must explicitly confirm the external rental before the seven-day commission-free period starts. Remaining work: rental contract/document storage and operational testing.
+The dedicated driver-without-car journey is implemented in the UI and Edge Function. Drivers must separately consent to sharing their name and phone with the assigned partner for rental coordination. A partner must explicitly confirm the external rental before the seven-day commission-free period starts. Remaining work: rental contract/document storage and operational testing.
 - Explain eligibility and required documents.
 - Collect applicant contact details and preferred city securely.
 - Store applications with explicit pending/approved/rejected/contacted status.
