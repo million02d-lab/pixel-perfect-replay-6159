@@ -4,7 +4,7 @@ Ozannif is being developed for an initial Rabat and Salé service area. The fron
 
 ## Current repository status
 
-The existing frontend has been connected to the Ozannif Supabase project, and an Edge Function (`ozannif-api`, deployed version 25 at the time of writing) now handles authenticated account provisioning, server-side fare quotes, trip creation and state changes, driver availability and proximity matching, driver/vehicle and partner applications, private driver-document metadata/review, rental requests and partner confirmation, loyalty points on trip completion, and admin operations.
+The existing frontend has been connected to the Ozannif Supabase project, and an Edge Function (`ozannif-api`, deployed version 26 at the time of writing) now handles authenticated account provisioning, server-side fare quotes, trip creation and state changes, driver availability and proximity matching, driver/vehicle and partner applications, private driver-document metadata/review, rental requests with explicit driver contact-sharing consent and partner confirmation, loyalty points on trip completion, and admin operations.
 
 The database foundation is applied: the public tables have RLS enabled, private driver-document storage is configured, and direct client-side table writes have been revoked so privileged changes must pass through the server-side API. The Supabase security advisor currently reports no security findings.
 
