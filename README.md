@@ -1,29 +1,32 @@
 # Ozannif — Moroccan urban mobility
 
-Ozannif is being developed for an initial Rabat and Salé service area. The frontend currently supports Arabic (RTL), French and English.
+Ozannif is being developed for an initial Rabat and Salé service area. The frontend supports Arabic (RTL), French and English.
 
 ## Current repository status
 
-This repository currently contains a **frontend foundation**, not a production ride-hailing service. The following flows are not yet connected to live services:
-- account creation and sign-in
+This repository currently contains a **frontend foundation** and the first Supabase database foundation. It is **not yet a production ride-hailing service**. The following flows are not yet connected end-to-end:
+- account creation and sign-in in the UI
 - booking persistence and driver dispatch
 - real geocoding, route distance, duration and GPS tracking
-- production pricing and commission calculations
+- server-verified production pricing and commission calculations
 - contact email delivery
 - rental-driver application processing
-- loyalty rewards and the operations/admin data layer
+- loyalty reward issuance and the operations/admin data layer
 
-The interface contains illustrative pricing and simulated form/booking states. Do not advertise those as live services until the backend flows have been implemented and verified.
+The interface still contains illustrative pricing, a placeholder map and simulated form/booking states. Do not advertise those as live services until the corresponding backend flows have been implemented and verified.
 
 ## Technology and structure
 
 - React + TypeScript + TanStack Start
 - Tailwind CSS
+- Supabase project `OZANNIF` — initial schema and RLS baseline applied
 - `src/i18n` — Arabic, French and English dictionaries and direction handling
 - `src/components` — brand, navigation, footer and shared UI
 - `src/features` — booking, map placeholder, forms, home sections and dashboards
-- `src/lib/fare.ts` — illustrative fare calculation
+- `src/lib/fare.ts` — illustrative fare calculation only
 - `src/routes` — home, booking, services, FAQ, sign-in, sign-up, driver, partner, passenger, dashboard and legal pages
+
+See [docs/supabase-baseline.md](docs/supabase-baseline.md) for the applied database foundation and its security boundaries.
 
 ## Development commands
 
@@ -38,7 +41,7 @@ Run these commands locally or in CI after each change and record any existing ba
 
 See `.env.example` for placeholder configuration. Do not commit `.env`, API secrets, service-role keys, private keys or credentials. Public map keys must be restricted to approved origins. Server-only secrets belong in the hosting provider's secret store.
 
-The repository mentions Supabase placeholders, but that does **not** confirm that a Supabase project is connected. Verify the current Lovable/deployment settings before selecting or changing the backend. Do not introduce a second backend without a deliberate migration plan.
+The Supabase project exists and the database foundation has been applied, but the frontend forms and booking flow are not yet connected to it. Configure the Supabase project URL and publishable key through the deployment environment before implementing the client integration. Never put a service-role or secret key in browser code.
 
 ## Production plan
 
