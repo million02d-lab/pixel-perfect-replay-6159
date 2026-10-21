@@ -7,7 +7,7 @@ import { DashShell, Empty, Panel } from "@/features/dashboard/DashShell";
 import { Button } from "@/components/ui/button";
 import { invokeOzannif } from "@/lib/supabase";
 
-type RentalRequest = { id: string; driver_id: string; city: string; notes: string | null; status: string; created_at: string; terms_accepted_at: string | null; partner_confirmed_at: string | null; commission_free_until: string | null; terms_version: string | null };
+type RentalRequest = { id: string; driver_id: string; city: string; notes: string | null; status: string; created_at: string; terms_accepted_at: string | null; contact_sharing_accepted_at: string | null; partner_confirmed_at: string | null; commission_free_until: string | null; terms_version: string | null; driverContact: { id: string; full_name: string; phone: string | null } | null };
 type PartnerData = { partner: { id: string; business_name: string; city: string; verification_status: string }; requests: RentalRequest[] };
 
 export const Route = createFileRoute("/partner-dashboard")({
@@ -22,9 +22,9 @@ function Page() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const labels = {
-    ar: { title: "لوحة الشريك", loading: "جارٍ تحميل الطلبات…", pending: "طلب الشراكة ديالك ما زال قيد المراجعة.", none: "ما عندكش طلبات كراء مسندة حالياً.", requests: "طلبات السائقين", confirm: "تأكيد الكراء وبدء 7 أيام بلا عمولة", terms: "أكد فقط بعد الاتفاق الفعلي مع السائق على الكراء والسيارة. هاد التأكيد كيبدا فترة 7 أيام بلا عمولة المنصة.", started: "تأكد الكراء. فترة بلا العمولة تنتهي في:", refresh: "تحديث", login: "تسجيل الدخول", apply: "طلب شراكة", match: "مطابقة" },
-    fr: { title: "Espace partenaire", loading: "Chargement des demandes…", pending: "Votre candidature partenaire est encore en cours de vérification.", none: "Aucune demande de location ne vous est attribuée.", requests: "Demandes des chauffeurs", confirm: "Confirmer la location et démarrer 7 jours sans commission", terms: "Confirmez uniquement après accord réel avec le chauffeur sur la location et le véhicule. Cette confirmation démarre les 7 jours sans commission plateforme.", started: "Location confirmée. La période sans commission se termine le :", refresh: "Actualiser", login: "Se connecter", apply: "Devenir partenaire", match: "Mise en relation" },
-    en: { title: "Partner dashboard", loading: "Loading requests…", pending: "Your partner application is still under review.", none: "No rental requests are assigned to you yet.", requests: "Driver rental requests", confirm: "Confirm rental and start 7 commission-free days", terms: "Confirm only after you and the driver have actually agreed on the rental and vehicle. This confirmation starts the 7-day platform-commission-free period.", started: "Rental confirmed. Commission-free period ends:", refresh: "Refresh", login: "Sign in", apply: "Apply as partner", match: "Matched" },
+    ar: { title: "لوحة الشريك", loading: "جارٍ تحميل الطلبات…", pending: "طلب الشراكة ديالك ما زال قيد المراجعة.", none: "ما عندكش طلبات كراء مسندة حالياً.", requests: "طلبات السائقين", confirm: "تأكيد الكراء وبدء 7 أيام بلا عمولة", terms: "أكد فقط بعد الاتفاق الفعلي مع السائق على الكراء والسيارة. هاد التأكيد كيبدا فترة 7 أيام بلا عمولة المنصة.", started: "تأكد الكراء. فترة بلا العمولة تنتهي في:", refresh: "تحديث", login: "تسجيل الدخول", apply: "طلب شراكة", match: "مطابقة", noPhone: "ما عطاش السائق رقم الهاتف فالحساب ديالو." },
+    fr: { title: "Espace partenaire", loading: "Chargement des demandes…", pending: "Votre candidature partenaire est encore en cours de vérification.", none: "Aucune demande de location ne vous est attribuée.", requests: "Demandes des chauffeurs", confirm: "Confirmer la location et démarrer 7 jours sans commission", terms: "Confirmez uniquement après accord réel avec le chauffeur sur la location et le véhicule. Cette confirmation démarre les 7 jours sans commission plateforme.", started: "Location confirmée. La période sans commission se termine le :", refresh: "Actualiser", login: "Se connecter", apply: "Devenir partenaire", match: "Mise en relation", noPhone: "Aucun numéro de téléphone n’est renseigné sur le profil du chauffeur." },
+    en: { title: "Partner dashboard", loading: "Loading requests…", pending: "Your partner application is still under review.", none: "No rental requests are assigned to you yet.", requests: "Driver rental requests", confirm: "Confirm rental and start 7 commission-free days", terms: "Confirm only after you and the driver have actually agreed on the rental and vehicle. This confirmation starts the 7-day platform-commission-free period.", started: "Rental confirmed. Commission-free period ends:", refresh: "Refresh", login: "Sign in", apply: "Apply as partner", match: "Matched", noPhone: "No phone number is available in the driver profile." },
   }[lang];
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -58,7 +58,8 @@ function Page() {
                 {data.requests.map((item) => (
                   <article key={item.id} className="grid gap-3 rounded-lg border p-4">
                     <div>
-                      <p className="font-semibold">{item.city} · {item.driver_id}</p>
+                      <p className="font-semibold">{item.city} · {item.driverContact?.full_name || labels.match}</p>
+                      {item.driverContact?.phone ? <p className="mt-1 text-sm" dir="ltr"><a className="font-semibold text-primary underline" href={`tel:${item.driverContact.phone}`}>{item.driverContact.phone}</a></p> : <p className="mt-1 text-xs text-muted-foreground">{labels.noPhone}</p>}
                       <p className="mt-1 text-sm text-muted-foreground">{item.notes || "—"}</p>
                       <p className="mt-1 text-xs text-muted-foreground">{item.terms_accepted_at ? new Date(item.terms_accepted_at).toLocaleString(lang) : ""}</p>
                     </div>
