@@ -33,13 +33,15 @@ export function ContactForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [v, setV] = useState({ name: "", email: "", message: "" });
   const [requestError, setRequestError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!v.name.trim() || !EMAIL.test(v.email) || !v.message.trim()) return setStatus("error");
     setRequestError("");
     setStatus("loading");
     try {
-      await invokeOzannif({ action: "contact", name: v.name.trim(), email: v.email.trim(), message: v.message.trim() }, { anonymous: true });
+      const result = await invokeOzannif<{ emailSent?: boolean }>({ action: "contact", name: v.name.trim(), email: v.email.trim(), message: v.message.trim() }, { anonymous: true });
+      setSuccessMessage(result.emailSent ? t.contact.ok : t.contact.savedOnly);
       setStatus("success");
       setV({ name: "", email: "", message: "" });
     } catch (error) {
@@ -52,7 +54,7 @@ export function ContactForm() {
       <Field id={`${id}n`} label={t.contact.name}><input id={`${id}n`} className={inputCls} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>
       <Field id={`${id}e`} label={t.contact.email}><input id={`${id}e`} type="email" dir="ltr" className={inputCls} value={v.email} onChange={(e) => setV({ ...v, email: e.target.value })} /></Field>
       <Field id={`${id}m`} label={t.contact.message}><textarea id={`${id}m`} rows={4} className={inputCls} value={v.message} onChange={(e) => setV({ ...v, message: e.target.value })} /></Field>
-      <StatusMsg status={status} ok={t.contact.ok} err={requestError || t.contact.err} />
+      <StatusMsg status={status} ok={successMessage || t.contact.ok} err={requestError || t.contact.err} />
       <Button type="submit" disabled={status === "loading"}>{status === "loading" ? <><Loader2 className="animate-spin" />{t.contact.sending}</> : t.contact.send}</Button>
     </form>
   );
