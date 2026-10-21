@@ -1,7 +1,8 @@
 type AuthSession = { access_token: string; refresh_token: string; expires_at: number; token_type?: string; user?: { id: string; email?: string; user_metadata?: Record<string, unknown> } };
 const SESSION_KEY = "ozannif.auth.session";
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? "https://sqqbfvuvtmuapnxifmeq.supabase.co";
+// Publishable keys are intended for browser use; database access is still protected by RLS.
+const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ?? "sb_publishable_HyUlm9-0KYg2fKKUnb--Hw_RK2VldIe";
 
 function config() {
   if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error("Ozannif account services are not configured yet.");
