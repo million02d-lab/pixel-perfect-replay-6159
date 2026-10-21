@@ -32,7 +32,7 @@ Run this only as the trusted project owner in the Supabase SQL Editor. Do not ex
 - Add `ALLOWED_ORIGINS` with the exact production domain and approved preview domains.
 - Add `MAPBOX_ACCESS_TOKEN` or `GOOGLE_MAPS_API_KEY` to Edge Function secrets.
 - Add `RESEND_API_KEY`, `SUPPORT_EMAIL` and a verified `RESEND_FROM_EMAIL` if support email delivery is needed.
-- Configure email confirmation / SMTP for Supabase Auth.
+- Configure email confirmation / SMTP for Supabase Auth, and add the exact `/reset-password` redirect URL to Supabase Auth's allowed redirect URLs.
 - Review and approve the legal fare schedule before creating any active fare rules.
 - Verify driver and vehicle documents before approving a driver.
 - Verify an approved rental partner before matching a rental request; the 7-day commission-free period begins at the recorded match time.
