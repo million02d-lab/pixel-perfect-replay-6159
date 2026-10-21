@@ -1,8 +1,9 @@
-type AuthSession = { access_token: string; refresh_token: string; expires_at: number; token_type?: string; user?: { id: string; email?: string; user_metadata?: Record<string, unknown> } };
+type AuthUser = { id: string; email?: string; user_metadata?: Record<string, unknown> };
+type AuthSession = { access_token: string; refresh_token: string; expires_at: number; token_type?: string; user?: AuthUser };
 const SESSION_KEY = "ozannif.auth.session";
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? "https://sqqbfvuvtmuapnxifmeq.supabase.co";
+const SUPABASE_URL = (import.meta.env["VITE_SUPABASE_URL"] as string | undefined) ?? "https://sqqbfvuvtmuapnxifmeq.supabase.co";
 // Publishable keys are intended for browser use; database access is still protected by RLS.
-const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ?? "sb_publishable_HyUlm9-0KYg2fKKUnb--Hw_RK2VldIe";
+const SUPABASE_KEY = (import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] as string | undefined) ?? "sb_publishable_HyUlm9-0KYg2fKKUnb--Hw_RK2VldIe";
 
 function config() {
   if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error("Ozannif account services are not configured yet.");
@@ -23,9 +24,21 @@ function writeSession(session: AuthSession | null) {
   else window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
 }
 function normalizeSession(value: Record<string, unknown>): AuthSession | null {
-  if (typeof value.access_token !== "string" || typeof value.refresh_token !== "string") return null;
-  const expiresIn = typeof value.expires_in === "number" ? value.expires_in : 3600;
-  return { access_token: value.access_token, refresh_token: value.refresh_token, expires_at: Math.floor(Date.now() / 1000) + expiresIn, token_type: typeof value.token_type === "string" ? value.token_type : "bearer", ...(typeof value.user === "object" && value.user ? { user: value.user as AuthSession["user"] } : {}) };
+  const accessToken = value["access_token"];
+  const refreshToken = value["refresh_token"];
+  if (typeof accessToken !== "string" || typeof refreshToken !== "string") return null;
+  const rawExpiresIn = value["expires_in"];
+  const expiresIn = typeof rawExpiresIn === "number" ? rawExpiresIn : 3600;
+  const rawUser = value["user"];
+  const user = typeof rawUser === "object" && rawUser !== null ? rawUser as AuthUser : null;
+  const rawTokenType = value["token_type"];
+  return {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_at: Math.floor(Date.now() / 1000) + expiresIn,
+    token_type: typeof rawTokenType === "string" ? rawTokenType : "bearer",
+    ...(user ? { user } : {}),
+  };
 }
 async function authRequest(path: string, body?: unknown, token?: string) {
   const { url, key } = config();
@@ -35,14 +48,14 @@ async function authRequest(path: string, body?: unknown, token?: string) {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof payload.msg === "string" ? payload.msg : typeof payload.message === "string" ? payload.message : typeof payload.error_description === "string" ? payload.error_description : "The account request could not be completed.");
+  if (!response.ok) throw new Error(typeof payload["msg"] === "string" ? payload["msg"] : typeof payload["message"] === "string" ? payload["message"] : typeof payload["error_description"] === "string" ? payload["error_description"] : "The account request could not be completed.");
   return payload as Record<string, unknown>;
 }
 export async function signUp(email: string, password: string, fullName: string, accountType: "passenger" | "driver" = "passenger") {
   const result = await authRequest("signup", { email, password, data: { full_name: fullName, account_type: accountType } });
   const session = normalizeSession(result);
   if (session) writeSession(session); else writeSession(null);
-  return { session, user: result.user as { id?: string; email?: string; user_metadata?: Record<string, unknown> } | undefined };
+  return { session, user: result["user"] as AuthUser | undefined };
 }
 export async function signIn(email: string, password: string) {
   const result = await authRequest("token?grant_type=password", { email, password });
@@ -77,6 +90,6 @@ export async function invokeOzannif<T = Record<string, unknown>>(body: Record<st
     body: JSON.stringify(body),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "The request could not be completed.");
+  if (!response.ok) throw new Error(typeof payload["error"] === "string" ? payload["error"] : "The request could not be completed.");
   return payload as T;
 }
