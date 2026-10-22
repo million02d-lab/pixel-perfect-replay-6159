@@ -13,7 +13,7 @@ The React + TypeScript + TanStack Start frontend now includes:
 - An OpenStreetMap view for resolved trip locations, private driver document upload/review, password recovery, proximity-based driver matching (GPS shared only while online), and tests/CI for lint, unit tests, typecheck and build.
 
 The project is **not ready for public production launch**:
-- Mapbox or Google Maps secrets must be configured in Supabase Edge Function secrets; live geocoding/directions fail closed until then.
+- Live geocoding/directions can use Mapbox or Google Maps, or self-hosted/configured `NOMINATIM_BASE_URL` and `OSRM_BASE_URL`. The optional public OSM test fallback is disabled by default and is not an SLA-backed production service; production use needs a reviewed provider plan, rate limiting, monitoring, and compliance with provider policies.
 - No production fare rules are active. An authorized admin must validate prices and activate a rule including fuel price and litres per 100 km.
 - A trusted admin must be provisioned through the Supabase SQL Editor; see docs/admin-bootstrap.md.
 - Support email requires a Resend API key, support inbox and verified sender; otherwise contact messages are saved in the database only.
@@ -118,6 +118,15 @@ The project is not launch-ready until:
 7. Admin authorization is enforced server-side and every privileged action is auditable.
 8. Arabic/French/English, mobile, accessibility, privacy and security checks pass.
 9. CI build, lint and test jobs pass, and the deployed commit is identified.
+
+## Open geocoding/routing provider configuration
+
+The Edge Function supports provider switching without changing booking logic:
+- Preferred production options: configured Mapbox/Google keys, or managed/self-hosted endpoints via `NOMINATIM_BASE_URL` and `OSRM_BASE_URL`.
+- Optional limited-test fallback: set `ENABLE_PUBLIC_OSM_FALLBACK=true`. For public Nominatim fallback, also set `OSM_CONTACT_EMAIL` so requests identify the application. Leave the flag unset/false for production unless a provider-policy review explicitly approves its use.
+- The public Nominatim and OSRM demo services are shared community infrastructure. They have usage limits and no production availability guarantee; do not send high-volume or launch traffic to them, and do not promise they will remain free forever.
+- Coordinates are still restricted to the current Rabat–Salé service-area bounding box, and route quotes still fail closed if no active, validated fare rule exists.
+- Before enabling this path in a deployed environment, run geocoding and route smoke tests, inspect provider errors/timeouts, and add request throttling/caching suitable for the selected provider.
 
 ## Required configuration still to verify
 

@@ -5,6 +5,10 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUB
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const MAPBOX_TOKEN = Deno.env.get("MAPBOX_ACCESS_TOKEN") ?? "";
 const GOOGLE_MAPS_KEY = Deno.env.get("GOOGLE_MAPS_API_KEY") ?? "";
+const OSRM_BASE_URL = (Deno.env.get("OSRM_BASE_URL") ?? "").replace(/\/$/, "");
+const NOMINATIM_BASE_URL = (Deno.env.get("NOMINATIM_BASE_URL") ?? "").replace(/\/$/, "");
+const ENABLE_PUBLIC_OSM_FALLBACK = Deno.env.get("ENABLE_PUBLIC_OSM_FALLBACK") === "true";
+const OSM_CONTACT_EMAIL = Deno.env.get("OSM_CONTACT_EMAIL") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const SUPPORT_EMAIL = Deno.env.get("SUPPORT_EMAIL") ?? "";
 const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") ?? "";
@@ -77,7 +81,17 @@ async function routeFor(aLat: number, aLng: number, bLat: number, bLng: number) 
     if (d.status !== "OK" || !route || !Number.isFinite(route.distance?.value) || !Number.isFinite(route.duration?.value)) throw new Error("No drivable route was found.");
     return { distanceM: Math.round(route.distance.value), durationS: Math.round(route.duration.value) };
   }
-  throw new Error("Live route calculation is not configured yet. Add MAPBOX_ACCESS_TOKEN or GOOGLE_MAPS_API_KEY to Supabase Edge Function secrets.");
+  const osrmBase = OSRM_BASE_URL || (ENABLE_PUBLIC_OSM_FALLBACK ? "https://router.project-osrm.org" : "");
+  if (osrmBase) {
+    const url = `${osrmBase}/route/v1/driving/${aLng},${aLat};${bLng},${bLat}?overview=false&alternatives=false&steps=false`;
+    const r = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!r.ok) throw new Error("The open route provider is temporarily unavailable.");
+    const d = await r.json();
+    const route = d.routes?.[0];
+    if (d.code !== "Ok" || !route || !Number.isFinite(route.distance) || !Number.isFinite(route.duration) || route.distance <= 0 || route.duration <= 0) throw new Error("No drivable route was found.");
+    return { distanceM: Math.round(route.distance), durationS: Math.round(route.duration) };
+  }
+  throw new Error("Live route calculation is not configured. Set MAPBOX_ACCESS_TOKEN, GOOGLE_MAPS_API_KEY, or OSRM_BASE_URL. Public OSM fallback is optional and intended only for limited testing.");
 }
 async function quote(aLat: number, aLng: number, bLat: number, bLng: number, vehicle: string) {
   const route = await routeFor(aLat, aLng, bLat, bLng);
@@ -229,7 +243,25 @@ Deno.serve(async (req: Request) => {
           point = { label: str(result.formatted_address, 240) ?? query, latitude: result.geometry.location.lat, longitude: result.geometry.location.lng };
         }
       } else {
-        throw new Error("Live geocoding is not configured. Add a Mapbox or Google Maps key to Supabase Edge Function secrets.");
+        const nominatimBase = NOMINATIM_BASE_URL || (ENABLE_PUBLIC_OSM_FALLBACK ? "https://nominatim.openstreetmap.org" : "");
+        if (!nominatimBase) throw new Error("Live geocoding is not configured. Set MAPBOX_ACCESS_TOKEN, GOOGLE_MAPS_API_KEY, or NOMINATIM_BASE_URL. Public OSM fallback is optional and intended only for limited testing.");
+        if (ENABLE_PUBLIC_OSM_FALLBACK && !OSM_CONTACT_EMAIL && !NOMINATIM_BASE_URL) throw new Error("Set OSM_CONTACT_EMAIL before enabling the public OSM fallback.");
+        const url = new URL(`${nominatimBase}/search`);
+        url.searchParams.set("q", query);
+        url.searchParams.set("format", "jsonv2");
+        url.searchParams.set("countrycodes", "ma");
+        url.searchParams.set("viewbox", "-7.10,34.20,-6.50,33.80");
+        url.searchParams.set("bounded", "1");
+        url.searchParams.set("limit", "1");
+        const headers = new Headers({ "Accept": "application/json" });
+        if (OSM_CONTACT_EMAIL) headers.set("User-Agent", `Ozannif/1.0 (${OSM_CONTACT_EMAIL})`);
+        const r = await fetch(url, { headers });
+        if (!r.ok) throw new Error("The open geocoding provider is temporarily unavailable.");
+        const results = await r.json();
+        const result = Array.isArray(results) ? results[0] : null;
+        if (result && Number.isFinite(Number(result.lat)) && Number.isFinite(Number(result.lon))) {
+          point = { label: str(result.display_name, 240) ?? query, latitude: Number(result.lat), longitude: Number(result.lon) };
+        }
       }
       if (!point || point.latitude < 33.80 || point.latitude > 34.20 || point.longitude < -7.10 || point.longitude > -6.50) {
         return fail("Choose a location within the current Rabat–Salé service area.", 422, origin);
