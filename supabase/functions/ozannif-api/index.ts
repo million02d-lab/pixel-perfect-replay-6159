@@ -109,10 +109,10 @@ async function quote(aLat: number, aLng: number, bLat: number, bLng: number, veh
   const base = Number(rule.base_fare_mad);
   const distance = km * Number(rule.per_km_mad);
   const time = minutes * Number(rule.per_minute_mad);
-  // Pricing model A: per-kilometre pricing already includes fuel.
-  // Keep legacy fuel fields in the schema for audit/migration compatibility, but do not
-  // add a second fuel component: doing so would double-count fuel.
-  const total = Math.max(Number(rule.minimum_fare_mad), base + distance + time);
+  // Pricing model B: calculate from routed distance AND routed duration.
+  // Fuel is included in the per-kilometre rate; never add a second fuel surcharge.
+  // Round the passenger total once to currency precision, after applying the minimum.
+  const total = round2(Math.max(Number(rule.minimum_fare_mad), base + distance + time));
   const fee = Number(rule.platform_fee_mad);
   if (![base, distance, time, total, fee].every(Number.isFinite) || total < 0 || fee < 0 || fee > total) throw new Error("The active fare rule is invalid.");
   return { route, ruleId: rule.id, vehicleClass: vehicle, currency: "MAD", breakdown: { base: round2(base), distance: round2(distance), time: round2(time), fuel: 0, platformFee: round2(fee), total: round2(total), driverNetBeforeOtherCosts: round2(total - fee) } };

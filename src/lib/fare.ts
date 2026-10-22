@@ -1,7 +1,7 @@
 /**
  * ILLUSTRATIVE fare estimate for the demo UI only.
  * Real fares, commissions and eligibility MUST be computed server-side.
- * Demo totals mirror model A's shape only: fuel is included in perKm, and the platform fee is deducted from the fare, not added to the passenger total.
+ * Demo totals illustrate distance + time pricing only; fuel is included in perKm, and the platform fee is deducted from the passenger fare, not added on top.
  */
 export type VehicleClass = "economy" | "comfort" | "van";
 
