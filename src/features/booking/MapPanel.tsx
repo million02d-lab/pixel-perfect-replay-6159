@@ -10,21 +10,29 @@ export interface MapProviderProps {
 }
 
 export function MapPanel(props: MapProviderProps) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { pickupPoint, destinationPoint } = props;
-  const live = Boolean(pickupPoint && destinationPoint);
-  const mapSrc = live && pickupPoint && destinationPoint
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${Math.min(pickupPoint.longitude, destinationPoint.longitude) - 0.015}%2C${Math.min(pickupPoint.latitude, destinationPoint.latitude) - 0.015}%2C${Math.max(pickupPoint.longitude, destinationPoint.longitude) + 0.015}%2C${Math.max(pickupPoint.latitude, destinationPoint.latitude) + 0.015}&layer=mapnik&marker=${pickupPoint.latitude}%2C${pickupPoint.longitude}`
+  const hasRouteEndpoints = Boolean(pickupPoint && destinationPoint);
+  const directionsUrl = hasRouteEndpoints && pickupPoint && destinationPoint
+    ? `https://www.google.com/maps/dir/?api=1&origin=${pickupPoint.latitude},${pickupPoint.longitude}&destination=${destinationPoint.latitude},${destinationPoint.longitude}&travelmode=driving`
     : null;
+  // Google Maps directions embed displays a road route between the resolved points.
+  // It is a visual preview only; the server-side routing provider remains authoritative for fare distance/time.
+  const mapSrc = directionsUrl
+    ? `https://maps.google.com/maps?output=embed&saddr=${pickupPoint!.latitude},${pickupPoint!.longitude}&daddr=${destinationPoint!.latitude},${destinationPoint!.longitude}`
+    : null;
+  const openLabel = lang === "ar" ? "فتح المسار في خرائط Google" : lang === "fr" ? "Ouvrir l’itinéraire dans Google Maps" : "Open route in Google Maps";
+  const routeLabel = lang === "ar" ? "معاينة المسار بالسيارة" : lang === "fr" ? "Aperçu de l’itinéraire en voiture" : "Driving route preview";
   return (
     <figure className="relative min-h-64 overflow-hidden rounded-2xl border bg-secondary" aria-label={t.map.label}>
-      {mapSrc ? (
+      {mapSrc && pickupPoint && destinationPoint ? (
         <iframe
-          title={`OpenStreetMap — ${pickupPoint?.label} to ${destinationPoint?.label}`}
+          title={`Google Maps driving directions — ${pickupPoint.label} to ${destinationPoint.label}`}
           src={mapSrc}
           className="h-full min-h-80 w-full border-0"
           loading="lazy"
-          referrerPolicy="no-referrer"
+          referrerPolicy="no-referrer-when-downgrade"
+          allowFullScreen
         />
       ) : (
         <svg viewBox="0 0 400 260" className="h-full min-h-64 w-full" role="img" aria-label={t.map.label}>
@@ -38,11 +46,12 @@ export function MapPanel(props: MapProviderProps) {
         </svg>
       )}
       <figcaption className="absolute start-3 top-3 rounded-md bg-card/95 px-2 py-1 text-xs">
-        {live ? "© OpenStreetMap contributors" : <><DemoBadge /> {t.map.label}</>}
+        {hasRouteEndpoints ? routeLabel : <><DemoBadge /> {t.map.label}</>}
       </figcaption>
       {props.pickup && (
         <div className="absolute bottom-3 start-3 end-3 rounded-md bg-card/95 px-3 py-2 text-sm shadow">
           <span className="font-semibold text-primary">{pickupPoint?.label ?? props.pickup}</span> → <span className="font-semibold text-terracotta">{destinationPoint?.label ?? props.destination}</span>
+          {directionsUrl && <a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-1 block font-semibold text-primary underline">{openLabel}</a>}
         </div>
       )}
     </figure>
