@@ -3,7 +3,11 @@
 This checklist separates implementation work from decisions and credentials only the platform owner can supply. Do not announce a public launch until required checks are complete.
 
 ## Confirmed during the latest review (2026-10-22)
-- Supabase project is active and the `ozannif-api` Edge Function is deployed (version 29).
+- Supabase project is active and healthy; `ozannif-api` is deployed as version 30.
+- Pricing model A is deployed: the per-kilometre rate includes fuel and no separate fuel component is added.
+- GitHub PR #10 was merged; CI verification job completed successfully before merge.
+- All public application tables checked have RLS enabled.
+- The live `public.fare_rules` table has zero rows and zero active rules; real quotes intentionally fail closed until an approved rule exists.
 - Supabase Security Advisor returned no findings at the latest check.
 - Homepage hero polish PR #8 was merged after its CI workflow completed successfully.
 - No production fare rules exist or are active. The server quote flow intentionally fails closed until an approved rule is activated.
