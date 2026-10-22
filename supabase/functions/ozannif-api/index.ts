@@ -27,6 +27,13 @@ const isObj = (v: unknown): v is Json => typeof v === "object" && v !== null && 
 const str = (v: unknown, max = 240) => typeof v === "string" && v.trim().length > 0 && v.trim().length <= max ? v.trim() : null;
 const num = (v: unknown, min: number, max: number) => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max ? v : null;
 
+// Initial launch service area: Rabat–Salé and nearby Temara.
+// Enforce this server-side as well as during geocoding; clients can call the API directly.
+const SERVICE_AREA = { minLatitude: 33.80, maxLatitude: 34.20, minLongitude: -7.10, maxLongitude: -6.50 };
+const isInServiceArea = (latitude: number, longitude: number) =>
+  latitude >= SERVICE_AREA.minLatitude && latitude <= SERVICE_AREA.maxLatitude &&
+  longitude >= SERVICE_AREA.minLongitude && longitude <= SERVICE_AREA.maxLongitude;
+
 function originFor(req: Request) {
   const origin = req.headers.get("origin") ?? "";
   if (!origin) return "*";
@@ -275,6 +282,9 @@ Deno.serve(async (req: Request) => {
       const bLat = num(body.destinationLatitude, -90, 90), bLng = num(body.destinationLongitude, -180, 180);
       const vehicle = typeof body.vehicleClass === "string" && VEHICLES.has(body.vehicleClass) ? body.vehicleClass : "economy";
       if (!pickup || !destination || aLat === null || aLng === null || bLat === null || bLng === null) return fail("Valid pickup/destination labels and coordinates are required.", 422, origin);
+      if (!isInServiceArea(aLat, aLng) || !isInServiceArea(bLat, bLng)) {
+        return fail("Pickup and destination must both be within the current Rabat–Salé service area.", 422, origin);
+      }
       if (Math.abs(aLat - bLat) < 0.00001 && Math.abs(aLng - bLng) < 0.00001) return fail("Pickup and destination must be different.", 422, origin);
       const q = await quote(aLat, aLng, bLat, bLng, vehicle);
       if (action === "quote") return json({ quote: { ...q, distanceKm: round2(q.route.distanceM / 1000), durationMinutes: Math.ceil(q.route.durationS / 60) } }, 200, origin);
