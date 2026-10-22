@@ -6,7 +6,7 @@ The `ozannif-api` function is deployed to the connected Supabase project. The re
 
 - `ensure-profile`: creates the user's profile if missing; driver intent creates a pending driver profile. It does not grant a privileged role.
 - `geocode`: resolves a Morocco location through the configured Mapbox or Google geocoding API and limits results to the current Rabat–Salé service area.
-- `quote`: calculates route distance/duration through the configured directions provider and uses an active database fare rule, including a fuel component based on fuel price and assumed litres per 100 km.
+- `quote`: calculates route distance/duration through the configured directions provider and uses an active database fare rule. Pricing model A is selected: the per-kilometre rate includes fuel, so no separate fuel component is added.
 - `create-trip`: recalculates the route and fare on the server, persists a trip, and uses a caller-supplied UUID idempotency key.
 - `partner-application`: persists a partner application as pending review.
 - `vehicle-application`, `register-document`: persist vehicle applications and private driver-document metadata; files are stored in a non-public Storage bucket.
@@ -30,7 +30,7 @@ Restrict provider keys to the necessary APIs and usage limits. For Google Maps, 
 
 ## Fare rules
 
-The function intentionally refuses to quote or create a trip when no active, time-valid fare rule exists for the requested vehicle class. No production fare rules have been activated because the commercial price schedule still needs approval. Do not activate illustrative rates without reviewing fuel prices, vehicle consumption, distance/time cost, driver net earnings and the platform fee.
+The function intentionally refuses to quote or create a trip when no active, time-valid fare rule exists for the requested vehicle class. Pricing model A is selected: passenger total = max(minimum fare, base fare + routed distance × per-km rate + routed duration × per-minute rate). The per-km rate is intended to include fuel; the API does not add a separate fuel component. Legacy fuel price and consumption columns remain in the schema for compatibility but are not used by this calculation. No production fare rules have been activated because the actual commercial price schedule still needs approval. Do not activate illustrative rates without validating fuel prices, vehicle costs, distance/time cost, driver net earnings and the platform fee.
 
 ## Security notes
 
