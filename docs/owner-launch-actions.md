@@ -10,7 +10,6 @@ This checklist separates implementation work from decisions and credentials only
 - The live `public.fare_rules` table has zero rows and zero active rules; real quotes intentionally fail closed until an approved rule exists.
 - Supabase Security Advisor returned no findings at the latest check.
 - Homepage hero polish PR #8 was merged after its CI workflow completed successfully.
-- No production fare rules exist or are active. The server quote flow intentionally fails closed until an approved rule is activated.
 
 ## Owner actions (external dashboards or real-world decisions)
 
