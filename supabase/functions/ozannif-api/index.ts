@@ -109,14 +109,13 @@ async function quote(aLat: number, aLng: number, bLat: number, bLng: number, veh
   const base = Number(rule.base_fare_mad);
   const distance = km * Number(rule.per_km_mad);
   const time = minutes * Number(rule.per_minute_mad);
-  const fuelPrice = rule.fuel_price_mad_per_l == null ? null : Number(rule.fuel_price_mad_per_l);
-  const consumption = rule.assumed_l_per_100km == null ? null : Number(rule.assumed_l_per_100km);
-  if (fuelPrice === null || consumption === null || fuelPrice <= 0 || consumption <= 0) throw new Error("The active fare rule is missing validated fuel price or vehicle consumption inputs.");
-  const fuel = km * fuelPrice * consumption / 100;
-  const total = Math.max(Number(rule.minimum_fare_mad), base + distance + time + fuel);
+  // Pricing model A: per-kilometre pricing already includes fuel.
+  // Keep legacy fuel fields in the schema for audit/migration compatibility, but do not
+  // add a second fuel component: doing so would double-count fuel.
+  const total = Math.max(Number(rule.minimum_fare_mad), base + distance + time);
   const fee = Number(rule.platform_fee_mad);
-  if (![base, distance, time, fuel, total, fee].every(Number.isFinite) || total < 0 || fee < 0 || fee > total) throw new Error("The active fare rule is invalid.");
-  return { route, ruleId: rule.id, vehicleClass: vehicle, currency: "MAD", breakdown: { base: round2(base), distance: round2(distance), time: round2(time), fuel: round2(fuel), platformFee: round2(fee), total: round2(total), driverNetBeforeOtherCosts: round2(total - fee) } };
+  if (![base, distance, time, total, fee].every(Number.isFinite) || total < 0 || fee < 0 || fee > total) throw new Error("The active fare rule is invalid.");
+  return { route, ruleId: rule.id, vehicleClass: vehicle, currency: "MAD", breakdown: { base: round2(base), distance: round2(distance), time: round2(time), fuel: 0, platformFee: round2(fee), total: round2(total), driverNetBeforeOtherCosts: round2(total - fee) } };
 }
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
