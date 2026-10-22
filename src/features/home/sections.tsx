@@ -8,7 +8,7 @@ import { Section } from "@/components/site/Section";
 import { DemoBadge } from "@/components/site/DemoBadge";
 import { ContactForm } from "@/features/forms/DemoForms";
 import { useI18n } from "@/i18n/I18nProvider";
-import { DEMO_RATES } from "@/lib/fare";
+import { estimateFare } from "@/lib/fare";
 import marina from "@/assets/marina.jpg";
 import kasbah from "@/assets/kasbah.jpg";
 import hero from "@/assets/hero-hassan.jpg";
@@ -50,7 +50,7 @@ export function VehicleCards() {
             <p className="mt-1 text-muted-foreground">{d}</p>
             <div className="mt-5 flex items-end justify-between border-t pt-4">
               <span className="text-sm text-muted-foreground">{seats} {t.vehicles.seats}</span>
-              <span className="text-sm">{t.vehicles.from} <strong className="text-2xl text-primary" dir="ltr">{DEMO_RATES[k].base + DEMO_RATES[k].fee + 9} MAD</strong></span>
+              <span className="text-sm">{t.vehicles.from} <strong className="text-2xl text-primary" dir="ltr">{estimateFare(k, 3, 5).total} MAD</strong></span>
             </div>
           </article>
         ))}
