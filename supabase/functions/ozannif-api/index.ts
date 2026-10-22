@@ -280,7 +280,8 @@ Deno.serve(async (req: Request) => {
       const pickup = str(body.pickupLabel, 240), destination = str(body.destinationLabel, 240);
       const aLat = num(body.pickupLatitude, -90, 90), aLng = num(body.pickupLongitude, -180, 180);
       const bLat = num(body.destinationLatitude, -90, 90), bLng = num(body.destinationLongitude, -180, 180);
-      const vehicle = typeof body.vehicleClass === "string" && VEHICLES.has(body.vehicleClass) ? body.vehicleClass : "economy";
+      const vehicle = typeof body.vehicleClass === "string" && VEHICLES.has(body.vehicleClass) ? body.vehicleClass : null;
+      if (!vehicle) return fail("Choose a supported vehicle class.", 422, origin);
       if (!pickup || !destination || aLat === null || aLng === null || bLat === null || bLng === null) return fail("Valid pickup/destination labels and coordinates are required.", 422, origin);
       if (!isInServiceArea(aLat, aLng) || !isInServiceArea(bLat, bLng)) {
         return fail("Pickup and destination must both be within the current Rabat–Salé service area.", 422, origin);
