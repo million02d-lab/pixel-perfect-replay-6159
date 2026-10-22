@@ -1,6 +1,6 @@
 # Ozannif production-readiness plan
 
-## Current verified state (updated 2026-10-21)
+## Current verified state (updated 2026-10-22)
 
 The connected Supabase project is confirmed and has the core application schema with RLS enabled. The ozannif-api Edge Function is deployed (version tracked in Supabase; source is committed at supabase/functions/ozannif-api/index.ts). Core auth/profile, server-side geocoding and quote, trip persistence/lifecycle, driver presence, loyalty ledger, partner/vehicle applications, rental matching, admin review/fare-rule operations, and contact persistence are implemented in the current branch.
 
@@ -9,12 +9,12 @@ The React + TypeScript + TanStack Start frontend now includes:
 - Contact form persistence; optional support email when verified Resend settings are configured.
 - Driver profile, vehicle application, partner application, and driver-without-car rental request forms.
 - Passenger trip history and loyalty balance, driver availability/trip lifecycle, and an admin console with review queues, fare-rule creation and rental matching.
-- A server-side quote flow that geocodes locations within the configured Rabat–Salé area, obtains directions, calculates fuel cost from fare-rule fuel price and vehicle consumption, and persists trip requests with an idempotency key.
+- A server-side quote flow that geocodes locations within the configured Rabat–Salé area, obtains directions, applies pricing model A (fuel included in the per-kilometre rate, without a separate fuel charge), and persists trip requests with an idempotency key.
 - An OpenStreetMap view for resolved trip locations, private driver document upload/review, password recovery, proximity-based driver matching (GPS shared only while online), and tests/CI for lint, unit tests, typecheck and build.
 
 The project is **not ready for public production launch**:
 - Live geocoding/directions can use Mapbox or Google Maps, or self-hosted/configured `NOMINATIM_BASE_URL` and `OSRM_BASE_URL`. The optional public OSM test fallback is disabled by default and is not an SLA-backed production service; production use needs a reviewed provider plan, rate limiting, monitoring, and compliance with provider policies.
-- No production fare rules are active. An authorized admin must validate prices and activate a rule including fuel price and litres per 100 km.
+- No production fare rules are active. An authorized admin must validate the actual commercial prices and activate a rule. Legacy fuel price/consumption columns remain for compatibility but are not used by the model A fare total.
 - A trusted admin must be provisioned through the Supabase SQL Editor; see docs/admin-bootstrap.md.
 - Support email requires a Resend API key, support inbox and verified sender; otherwise contact messages are saved in the database only.
 - Contact throttling is best-effort per function instance and requires durable rate limiting/CAPTCHA before public promotion.
