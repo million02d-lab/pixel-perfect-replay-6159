@@ -13,19 +13,20 @@ Scope: first launch in Rabat–Salé / nearby Temara. Currency: Moroccan dirham 
 6. If routing, an active tariff, or required fuel inputs are unavailable, fail closed and do not create a booking using a guessed/demo price.
 7. Never treat public demo rates or UI pseudo-distance as operational prices.
 
-## Current server-side quote model
+## Selected server-side quote model — A (fuel included in per-km rate)
 
-The API currently calculates:
+The owner selected model A for implementation: **the per-kilometre rate includes fuel**. The quote engine must not add a second fuel component.
 
 - distance_km = routed_distance_m / 1000
 - duration_minutes = routed_duration_s / 60
-- distance_component = distance_km × per_km_mad
+- distance_component = distance_km × per_km_mad (fuel is included in this rate)
 - time_component = duration_minutes × per_minute_mad
-- fuel_component = distance_km × fuel_price_mad_per_l × assumed_l_per_100km / 100
-- passenger_total = max(minimum_fare_mad, base_fare_mad + distance_component + time_component + fuel_component)
+- passenger_total = max(minimum_fare_mad, base_fare_mad + distance_component + time_component)
 - driver_net_before_other_costs = passenger_total − platform_fee_mad
 
-This is the current implementation's calculation shape, not a recommendation that every component is commercially correct. The owner must decide whether per-km pricing already includes fuel; if it does, adding the fuel component again would double-count fuel. Before enabling rules, choose one consistent model and update implementation/tests if needed.
+The API retains legacy fuel input columns in the database schema for compatibility/audit purposes, but these columns are **not used in the fare total under model A**. The quote response reports `fuel: 0` as a breakdown field to make clear that no extra fuel charge is added; product wording should explain that fuel is included in the per-km component. This is not a claim that fuel costs are zero for drivers.
+
+This is a calculation-model decision only. It does **not** approve or activate any fare values. No production tariff should be activated until the owner approves actual values and representative routes are tested.
 
 ## Decisions required before activating fare rules
 
@@ -33,7 +34,7 @@ This is the current implementation's calculation shape, not a recommendation tha
 |---|---|---|
 | Pricing structure | Fixed destination/zone prices, or transparent distance + time formula | Product promise should match the quote engine. |
 | Vehicle classes | Confirm economy, comfort, van and real eligibility criteria | Avoid unclear or misleading vehicle pricing. |
-| Fuel treatment | Fuel included in per-km rate, or separate fuel component | Prevent double counting. |
+| Fuel treatment | **Model A selected:** fuel included in per-km rate; no separate fuel component | Implemented in the server quote formula; keep tests and passenger/driver wording aligned. |
 | Driver fairness floor | Minimum driver net / minimum trip payout, including deadhead-distance policy | A fare can be profitable for the platform but unfair to a driver. |
 | Platform fee | Fixed MAD per completed trip, percentage, or a clearly defined combination | Must be visible to the driver and reconcilable. |
 | Waiting, cancellation, tolls | Decide if/how these are charged and who receives them | Avoid disputes and unpriced costs. |
@@ -63,7 +64,8 @@ Record input route distance/duration, tariff version, component breakdown, passe
 
 ## Activation checklist
 
-- [ ] Owner approves the pricing structure and values.
+- [x] Owner selected model A: fuel included in the per-km rate (calculation model only).
+- [ ] Owner approves the actual pricing structure and fare values.
 - [ ] Product wording matches the actual price model (fixed destination price vs calculated route fare).
 - [ ] Backend calculation and tests match the approved model.
 - [ ] Driver net and fee are displayed before acceptance.
