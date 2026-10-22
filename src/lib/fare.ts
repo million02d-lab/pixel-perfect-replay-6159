@@ -1,6 +1,7 @@
 /**
  * ILLUSTRATIVE fare estimate for the demo UI only.
  * Real fares, commissions and eligibility MUST be computed server-side.
+ * Demo totals mirror model A's shape only: fuel is included in perKm, and the platform fee is deducted from the fare, not added to the passenger total.
  */
 export type VehicleClass = "economy" | "comfort" | "van";
 
@@ -16,8 +17,8 @@ export function estimateFare(vehicle: VehicleClass, distanceKm: number, duration
   const min = Math.max(0, durationMin);
   const perKm = +(km * r.perKm).toFixed(2);
   const perMin = +(min * r.perMin).toFixed(2);
-  const total = Math.round(r.base + perKm + perMin + r.fee);
-  return { base: r.base, perKm, perMin, fee: r.fee, total };
+  const total = Math.round(r.base + perKm + perMin);
+  return { base: r.base, perKm, perMin, fee: r.fee, total, driverNet: Math.max(0, +(total - r.fee).toFixed(2)) };
 }
 
 /** Deterministic pseudo-distance for demo routes (no real routing). */
