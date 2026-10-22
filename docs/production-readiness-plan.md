@@ -9,7 +9,7 @@ The React + TypeScript + TanStack Start frontend now includes:
 - Contact form persistence; optional support email when verified Resend settings are configured.
 - Driver profile, vehicle application, partner application, and driver-without-car rental request forms.
 - Passenger trip history and loyalty balance, driver availability/trip lifecycle, and an admin console with review queues, fare-rule creation and rental matching.
-- A server-side quote flow that geocodes locations within the configured Rabat–Salé area, obtains directions, applies pricing model A (fuel included in the per-kilometre rate, without a separate fuel charge), and persists trip requests with an idempotency key.
+- A server-side quote flow that geocodes locations within the configured Rabat–Salé area, obtains directions, applies pricing model B (routed distance + routed duration; fuel included in the per-kilometre rate, without a separate fuel charge), and persists trip requests with an idempotency key.
 - An OpenStreetMap view for resolved trip locations, private driver document upload/review, password recovery, proximity-based driver matching (GPS shared only while online), and tests/CI for lint, unit tests, typecheck and build.
 
 The project is **not ready for public production launch**:
