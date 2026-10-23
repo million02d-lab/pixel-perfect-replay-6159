@@ -1,4 +1,5 @@
 name: Deploy GitHub Pages
+# Static GitHub Pages deployment workflow.
 
 on:
   push:
