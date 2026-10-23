@@ -4,8 +4,8 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 const isLovableSandbox =
-  process.env.LOVABLE_SANDBOX === "1" ||
-  Boolean(process.env.DEV_SERVER__PROJECT_PATH);
+  process.env["LOVABLE_SANDBOX"] === "1" ||
+  Boolean(process.env["DEV_SERVER__PROJECT_PATH"]);
 
 export default defineConfig({
   vite: {
@@ -13,7 +13,7 @@ export default defineConfig({
   },
   // GitHub Pages cannot run a Nitro/SSR server. Disable Nitro only in CI and
   // prerender the public entry page into static files for Pages.
-  nitro: isLovableSandbox ? undefined : false,
+  ...(isLovableSandbox ? {} : { nitro: false }),
   tanstackStart: isLovableSandbox
     ? {
         server: { entry: "server" },
