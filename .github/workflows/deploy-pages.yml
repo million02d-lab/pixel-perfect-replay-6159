@@ -28,20 +28,19 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Build static site for GitHub Pages
         env:
-          NITRO_PRESET: github_pages
           VITE_BASE_URL: /pixel-perfect-replay-6159/
         run: bun run build
       - name: Verify static output
         run: |
-          test -f .output/public/index.html
-          touch .output/public/.nojekyll
-          cp .output/public/index.html .output/public/404.html
-          echo "Static pages generated:"
-          find .output/public -maxdepth 2 -type f | sort | head -80
+          test -f dist/client/index.html
+          touch dist/client/.nojekyll
+          cp dist/client/index.html dist/client/404.html
+          echo "Static Pages files generated:"
+          find dist/client -maxdepth 2 -type f | sort | head -80
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .output/public
+          path: dist/client
 
   deploy:
     if: github.ref == 'refs/heads/main'

@@ -1,26 +1,36 @@
-// @lovable.dev/vite-tanstack-config already includes the following — do NOT add them manually
-// or the app will break with duplicate plugins:
-//   - TanStack devtools (dev-only, first), tanstackStart, viteReact, tailwindcss, tsConfigPaths,
-//     nitro (build-only using cloudflare as a default target), VITE_* env injection, @ path alias,
-//     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
-// You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
+// @lovable.dev/vite-tanstack-config supplies the TanStack Start, React, Tailwind,
+// and path-alias plugins. Keep the Lovable preview on its normal server build,
+// while GitHub Actions emits a static client bundle for GitHub Pages.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-const githubPagesBase = "/pixel-perfect-replay-6159/";
+const isLovableSandbox =
+  process.env["LOVABLE_SANDBOX"] === "1" ||
+  Boolean(process.env["DEV_SERVER__PROJECT_PATH"]);
 
 export default defineConfig({
   vite: {
-    base: githubPagesBase,
+    base: "/pixel-perfect-replay-6159/",
   },
-  tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    server: { entry: "server" },
-    // Pre-render public routes so GitHub Pages can serve the UI without a server runtime.
-    prerender: {
-      enabled: true,
-      crawlLinks: true,
-      failOnError: false,
-      autoSubfolderIndex: true,
-    },
-  },
+  // GitHub Pages cannot run a Nitro/SSR server. Disable Nitro only in CI and
+  // prerender the public entry page into static files for Pages.
+  ...(isLovableSandbox ? {} : { nitro: false }),
+  tanstackStart: isLovableSandbox
+    ? {
+        server: { entry: "server" },
+        prerender: {
+          enabled: true,
+          crawlLinks: true,
+          failOnError: false,
+          autoSubfolderIndex: true,
+        },
+      }
+    : {
+        prerender: {
+          enabled: true,
+          crawlLinks: true,
+          failOnError: false,
+          autoSubfolderIndex: true,
+        },
+        pages: [{ path: "/" }],
+      },
 });
