@@ -9,7 +9,9 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 const githubPagesBase = "/pixel-perfect-replay-6159/";
 
 export default defineConfig({
-  base: githubPagesBase,
+  vite: {
+    base: githubPagesBase,
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     server: { entry: "server" },
